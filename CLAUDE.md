@@ -30,6 +30,21 @@ make, and don't sweep those into the same commit; commit them separately, or
 ask if their intent isn't clear. Skip this only where a project's own
 permissions block git actions outright (e.g. a restricted appliance session).
 
+## Merging pull requests
+
+Once CI is green on a PR that isn't marked draft, merge it — don't wait for an
+explicit "merge this" each time. Draft is the actual gate: mark a PR draft (and
+say why in the body) whenever it needs your review, a live test I can't run
+myself, or depends on something happening outside git that I can't verify —
+and leave it in draft rather than counting on this rule to hold it back on its
+own. Ready-for-review + green means land it, quietly, the same way a routine
+fix doesn't get narrated.
+
+If a repo requires reviews or has branch protection the merge can't satisfy,
+say so rather than working around it. And this only ever applies to a PR
+already marked ready — it's not permission to un-draft one I deliberately
+held back in order to then auto-merge it.
+
 ## Capturing raw feature ideas during dev work
 
 When I blurt out a raw, unstructured idea about ongoing dev work, rephrase
