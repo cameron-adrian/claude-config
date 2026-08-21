@@ -30,6 +30,29 @@ make, and don't sweep those into the same commit; commit them separately, or
 ask if their intent isn't clear. Skip this only where a project's own
 permissions block git actions outright (e.g. a restricted appliance session).
 
+## Testing and CI
+
+I don't read the code, so a green check is my only real substitute for
+reviewing a diff — which means a repo without tests gives me nothing to
+merge on. Every repo should have tests and a CI workflow that runs them on
+every pull request. When you're working in one that doesn't, set that up as
+its own pull request rather than asking me whether to; treat it as part of
+making the repo workable, not as a feature I have to request.
+
+What the tests should be is repo-specific and yours to choose — use whatever
+is idiomatic for the stack rather than forcing a house framework onto
+everything. Aim them at what would otherwise break silently: the external
+API that changes shape underneath us, the sync that quietly writes nothing,
+the parse that swallows a bad row. Coverage percentages don't interest me.
+Once a repo's setup exists, record what it is and how to run it in that
+repo's own CLAUDE.md so the next session doesn't rediscover it.
+
+Never get to green by weakening the check — no skipping, disabling, or
+loosening a test to make a build pass, and no CI workflow that appears green
+without running anything, which is worse than having none because it looks
+safe. Report the real output of a run; never describe tests as passing that
+you haven't actually watched pass.
+
 ## Merging pull requests
 
 Once CI is green on a PR that isn't marked draft, merge it — don't wait for an
