@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Shared helpers for the house hooks. Sourced, never executed.
 #
 # The one rule every caller inherits: FAIL OPEN. A gate that cannot make up its

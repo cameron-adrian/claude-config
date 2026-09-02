@@ -15,7 +15,7 @@
 # sit in the path of every edit, and a linter's opinions are not what this is
 # for. The bar is "does this file still parse", nothing more.
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 
 input=$(cat)

@@ -31,7 +31,7 @@ fail() { FAIL=$((FAIL + 1)); printf '  FAIL %s\n     %s\n' "$1" "${2:-}"; }
 # Run a hook script with a JSON payload, capturing rc, stdout, stderr.
 run_hook() {
   _script="$1"; _payload="$2"
-  HOOK_OUT=$(printf '%s' "$_payload" | bash "$SCRIPTS/$_script" 2>"$TMP/stderr")
+  printf '%s' "$_payload" | bash "$SCRIPTS/$_script" >/dev/null 2>"$TMP/stderr"
   HOOK_RC=$?
   HOOK_ERR=$(cat "$TMP/stderr" 2>/dev/null)
   return 0
@@ -39,6 +39,16 @@ run_hook() {
 
 expect_rc() {
   if [ "$HOOK_RC" = "$1" ]; then pass "$2"; else fail "$2" "expected rc=$1, got rc=$HOOK_RC"; fi
+}
+
+# `[ x ] && pass || fail` reads like if-then-else and is not: it binds left to
+# right, so a non-zero pass would run fail too. These two say what was meant.
+expect_empty() {  # $1=actual  $2=name
+  if [ -z "$1" ]; then pass "$2"; else fail "$2" "got: $1"; fi
+}
+
+expect_eq() {  # $1=expected  $2=actual  $3=name
+  if [ "$1" = "$2" ]; then pass "$3"; else fail "$3" "expected $1, got $2"; fi
 }
 
 TMP=$(mktemp -d)
@@ -122,7 +132,7 @@ printf '\n== syntaxcheck: must stay silent on good input ==\n'
 printf 'function hello() {\n  return 1;\n}\n' >"$TMP/ok.js"
 run_hook syntaxcheck.sh "{\"tool_input\":{\"file_path\":\"$TMP/ok.js\"}}"
 expect_rc 0 "valid JS passes"
-[ -z "$HOOK_ERR" ] && pass "valid JS says nothing" || fail "valid JS says nothing" "$HOOK_ERR"
+expect_empty "$HOOK_ERR" "valid JS says nothing"
 
 printf 'def f():\n    return 1\n' >"$TMP/ok.py"
 run_hook syntaxcheck.sh "{\"tool_input\":{\"file_path\":\"$TMP/ok.py\"}}"
@@ -182,20 +192,20 @@ case "$out" in *'"deny"'*) pass "direct push to default in a CI repo is refused"
 
 # The escape hatch has to work, or a wrong gate becomes a stuck session.
 out=$(gate '{"tool_input":{"command":"git push origin main #gate-ok"}}')
-[ -z "$out" ] && pass "#gate-ok overrides the gate" || fail "#gate-ok overrides the gate" "got: $out"
+expect_empty "$out" "#gate-ok overrides the gate"
 
 out=$(gate '{"tool_input":{"command":"git push -u origin my-feature"}}')
-[ -z "$out" ] && pass "push to a feature branch is allowed" || fail "push to a feature branch is allowed" "got: $out"
+expect_empty "$out" "push to a feature branch is allowed"
 
 out=$(gate '{"tool_input":{"command":"ls -la"}}')
-[ -z "$out" ] && pass "unrelated commands are ignored" || fail "unrelated commands are ignored" "got: $out"
+expect_empty "$out" "unrelated commands are ignored"
 
 out=$(gate '{"tool_input":{"command":"git status"}}')
-[ -z "$out" ] && pass "read-only git commands are ignored" || fail "read-only git commands are ignored" "got: $out"
+expect_empty "$out" "read-only git commands are ignored"
 
 # Fail-open: no repo at all must not block anything.
 out=$(cd "$TMP" && printf '{"tool_input":{"command":"git push origin main"}}' | bash "$SCRIPTS/git-gate.sh" 2>/dev/null)
-[ -z "$out" ] && pass "fails open outside a git repo" || fail "fails open outside a git repo" "got: $out"
+expect_empty "$out" "fails open outside a git repo"
 
 # Fail-open: a repo with no CI gets no push gate, because there is no check to
 # protect in the first place.
@@ -211,7 +221,7 @@ mkdir -p "$NOCI"
   git update-ref refs/remotes/origin/main HEAD
 ) >/dev/null 2>&1
 out=$(cd "$NOCI" && printf '{"tool_input":{"command":"git push origin main"}}' | bash "$SCRIPTS/git-gate.sh" 2>/dev/null)
-[ -z "$out" ] && pass "no CI means no push gate" || fail "no CI means no push gate" "got: $out"
+expect_empty "$out" "no CI means no push gate"
 
 printf '\n== blocked-permission detection ==\n'
 
@@ -248,16 +258,16 @@ printf '\n== stop hook ==\n'
 
 export CLAUDE_PLUGIN_DATA="$TMP/plugindata"
 out_rc=$( cd "$REPO" && printf '{"session_id":"s1"}' | bash "$SCRIPTS/unpushed.sh" >/dev/null 2>&1; echo $? )
-[ "$out_rc" = "2" ] && pass "uncommitted work is flagged once" || fail "uncommitted work is flagged once" "rc=$out_rc"
+expect_eq "2" "$out_rc" "uncommitted work is flagged once"
 
 out_rc=$( cd "$REPO" && printf '{"session_id":"s1"}' | bash "$SCRIPTS/unpushed.sh" >/dev/null 2>&1; echo $? )
-[ "$out_rc" = "0" ] && pass "it does not fire twice in one session" || fail "it does not fire twice in one session" "rc=$out_rc"
+expect_eq "0" "$out_rc" "it does not fire twice in one session"
 
 # The failure this hook was rewritten for: demanding a commit that policy forbids.
 mkdir -p "$REPO/.claude"
 cp "$BLK/.claude/settings.json" "$REPO/.claude/settings.json"
 out_rc=$( cd "$REPO" && printf '{"session_id":"s2"}' | bash "$SCRIPTS/unpushed.sh" >/dev/null 2>&1; echo $? )
-[ "$out_rc" = "0" ] && pass "silent when commit and push are denied" || fail "silent when commit and push are denied" "rc=$out_rc"
+expect_eq "0" "$out_rc" "silent when commit and push are denied"
 rm -f "$REPO/.claude/settings.json"
 
 printf '\n== orientation ==\n'
@@ -267,7 +277,7 @@ case "$out" in *"Branch:"*) pass "reports the branch";; *) fail "reports the bra
 case "$out" in *"uncommitted"*) pass "reports uncommitted work";; *) fail "reports uncommitted work" "got: $out";; esac
 
 out=$( cd "$TMP" && printf '{}' | bash "$SCRIPTS/orient.sh" 2>/dev/null )
-[ -z "$out" ] && pass "says nothing outside a git repo" || fail "says nothing outside a git repo" "got: $out"
+expect_empty "$out" "says nothing outside a git repo"
 
 printf '\n----------------------------------------\n'
 printf '%s passed, %s failed\n\n' "$PASS" "$FAIL"

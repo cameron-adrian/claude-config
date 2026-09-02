@@ -9,7 +9,7 @@
 # down. It is there so a deliberate exception costs one comment instead of a
 # stuck session, and so the gates can be tightened without fear of wedging.
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 
 input=$(cat)
@@ -59,7 +59,9 @@ case "$cmd" in
     [ -n "$target" ] || target="$current"
 
     case "$cmd" in
-      *" --force"*|*" -f "*|*" --force-with-lease"*)
+      # --force-with-lease is covered by the --force pattern; listing it
+      # separately would be dead.
+      *" --force"*|*" -f "*)
         if [ "$target" = "$default" ]; then
           house_deny "Refusing a force-push to $default.
 
@@ -102,7 +104,15 @@ case "$cmd" in
       esac
     done
 
-    info=$(gh pr view $prnum --json isDraft,mergeStateStatus,statusCheckRollup,title 2>/dev/null) || exit 0
+    # An empty $prnum has to disappear from the argument list entirely rather
+    # than be passed as "", which gh reads as a PR named "" and errors on. With
+    # no number, gh resolves the PR for the current branch, which is what a bare
+    # `gh pr merge` means.
+    if [ -n "$prnum" ]; then
+      info=$(gh pr view "$prnum" --json isDraft,mergeStateStatus,statusCheckRollup,title 2>/dev/null) || exit 0
+    else
+      info=$(gh pr view --json isDraft,mergeStateStatus,statusCheckRollup,title 2>/dev/null) || exit 0
+    fi
     [ -n "$info" ] || exit 0
 
     verdict=$(printf '%s' "$info" | house_py -c '

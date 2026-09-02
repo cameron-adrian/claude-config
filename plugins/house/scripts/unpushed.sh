@@ -11,7 +11,7 @@
 #   2. It fires at most once per session, tracked by a marker file, so being
 #      wrong costs one turn rather than the rest of the session.
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 
 input=$(cat)

@@ -15,8 +15,13 @@
 #
 # Plain text on stdout: SessionStart is one of the events where stdout becomes
 # context the session can act on.
+#
+# shellcheck disable=SC2016
+# The output is markdown, so several printf format strings contain backticks for
+# inline code. Single quotes are correct there -- nothing is meant to expand --
+# but shellcheck reads every backtick as an attempted command substitution.
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 
 house_in_repo || exit 0
@@ -89,12 +94,23 @@ if [ -n "$blocked_by" ]; then
 fi
 
 # How this repo is tested, so it does not have to be rediscovered.
+#
+# Written as a plain if/elif chain on purpose. The first version chained these
+# with && and ||, which reads like if-then-else and is not: `a || b && c` binds
+# left to right, so the pytest branch fired on repos that had neither pytest.ini
+# nor pyproject.toml.
 tests=""
-[ -f package.json ] && grep -q '"test"' package.json 2>/dev/null && tests="npm test"
-[ -f bin/selftest.py ] && tests="py bin/selftest.py"
-[ -f pytest.ini ] || [ -f pyproject.toml ] && [ -d tests ] && tests="${tests:-pytest}"
-[ -f Cargo.toml ] && tests="cargo test"
-[ -f go.mod ] && tests="go test ./..."
+if [ -f bin/selftest.py ]; then
+  tests="py bin/selftest.py"
+elif [ -f package.json ] && grep -q '"test"' package.json 2>/dev/null; then
+  tests="npm test"
+elif [ -d tests ] && { [ -f pytest.ini ] || [ -f pyproject.toml ]; }; then
+  tests="pytest"
+elif [ -f Cargo.toml ]; then
+  tests="cargo test"
+elif [ -f go.mod ]; then
+  tests="go test ./..."
+fi
 if [ -n "$tests" ]; then
   printf -- '- Tests: `%s`\n' "$tests"
 elif house_has_ci; then
