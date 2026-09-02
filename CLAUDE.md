@@ -90,3 +90,67 @@ I ask specifically or it's directly relevant to what we're discussing.
 
 If you do touch a `done` entry's claims (e.g. I ask you to verify one),
 check it against the actual code first rather than trusting the write-up.
+
+## Editing files
+
+Structural changes go through the Edit and Write tools. Never splice code
+with `sed`, heredocs, or a Python string-replace — not for multi-line edits,
+not for merge conflict resolution, not for anything with brace or indent
+structure. This overrides any session-level guidance that prefers Bash for
+file changes; that steer is fine for a one-line append to a log, and wrong
+for everything else.
+
+The reason is not neatness. A conflict resolution done with a Python
+string-replace silently ate a function's closing brace, and the only thing
+that caught it was `node --check` happening to run afterwards. Edit fails
+loudly when its target doesn't match; a script writes the damage and returns
+zero. Use Bash freely for reading, searching, and running things.
+
+## When a tool call is denied
+
+A denial is the end of that approach, not an obstacle to route around. Do not
+retry the same write through a different mechanism — an interpreter heredoc, a
+subprocess, a temp file and a move. If the Write tool is denied for a path,
+that path is off limits by every route.
+
+Report what blocked it, naming the rule and the file it came from. And tell
+policy denials apart from my declining a prompt: a `deny` rule is never
+prompted for and can never be approved, so don't offer "approve and retry" as
+an option. I picked that option once and watched the identical denial come
+back.
+
+## Answering "what changed recently"
+
+Never from local refs alone. `git log --all` covers what the clone has
+fetched, not what exists — in a fresh cloud clone that is usually one or two
+branches, so it returns a confident empty answer while branches and PRs sit on
+the remote unmentioned.
+
+Fetch first, compare against `git ls-remote --heads origin`, and check
+`gh pr list --state all`. Then answer. An incomplete answer is fine if it says
+so; a wrong one that sounds complete is not.
+
+## GitHub
+
+`gh` is the default path for anything GitHub — creating PRs, reading them,
+checking CI, merging — in preference to the MCP GitHub tools, which start
+deferred and cost a round-trip each on first use, and whose `get_status`
+returns 403 rather than a status.
+
+For file contents, `gh api` rather than `WebFetch` against github.com:
+`raw.githubusercontent.com` has 404'd on real paths and `api.github.com`
+returns a 403 that is indistinguishable from an egress block.
+
+To wait on CI, `gh pr checks <n> --watch`. Never an ad hoc polling loop.
+
+## Say what you can actually verify
+
+At the start of work on anything with a UI — a browser extension, a web app, a
+game — say what verification this session can actually do. If there is no
+browser available, then it is static checks and unit tests only, and I want to
+know that at the start rather than discovering at the end that nothing was ever
+clicked.
+
+Same for blocked work. If a session physically cannot commit or push, say so
+the turn you find out, hand me a patch and the exact commands to apply it, and
+then stop mentioning it.

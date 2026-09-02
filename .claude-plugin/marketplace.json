@@ -1,0 +1,15 @@
+{
+  "name": "cameron-house",
+  "description": "Cameron's house dev process: the automatic checks and commands that should apply in every repo, on every machine, and in cloud sessions.",
+  "owner": {
+    "name": "Cameron Adrian",
+    "url": "https://github.com/cameron-adrian"
+  },
+  "plugins": [
+    {
+      "name": "house",
+      "source": "./plugins/house",
+      "description": "House dev process: syntax gate on every write, git and merge gates, session orientation, and the ship/since/repo-doctor commands."
+    }
+  ]
+}
