@@ -1,7 +1,7 @@
 {
   "name": "house",
   "description": "House dev process: syntax gate on every write, git and merge gates, session orientation, and the ship/since/repo-doctor commands.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Cameron Adrian"
   },
