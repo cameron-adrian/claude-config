@@ -1,0 +1,10 @@
+{
+  "name": "house",
+  "description": "House dev process: syntax gate on every write, git and merge gates, session orientation, and the ship/since/repo-doctor commands.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cameron Adrian"
+  },
+  "homepage": "https://github.com/cameron-adrian/claude-config",
+  "repository": "https://github.com/cameron-adrian/claude-config"
+}

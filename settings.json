@@ -6,6 +6,17 @@
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
   "autoCompactWindow": 500000,
+  "extraKnownMarketplaces": {
+    "cameron-house": {
+      "source": {
+        "source": "github",
+        "repo": "cameron-adrian/claude-config"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "house@cameron-house": true
+  },
   "hooks": {
     "SessionStart": [
       {

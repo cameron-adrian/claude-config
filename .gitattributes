@@ -1,0 +1,12 @@
+# These scripts are authored on Windows and executed on Linux -- as hooks in
+# cloud sessions and as CI steps. Git's autocrlf would check them out with CRLF
+# line endings, and bash on Linux then fails on the trailing carriage return
+# with errors that point at the wrong thing entirely ("bad interpreter: no such
+# file or directory" on a file that is plainly there).
+#
+# Forcing LF is what makes one copy of a script work on both.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf

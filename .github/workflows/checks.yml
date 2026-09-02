@@ -1,0 +1,61 @@
+# Every check this repo runs, on every push and every pull request.
+#
+# What is actually being protected here: these scripts run as hooks on every
+# file write and every Bash call in every session, on two operating systems. A
+# broken one does not throw an error anybody sees -- it either stops gating and
+# lets broken code through silently, or starts gating correct work and gets
+# switched off. Neither shows up until something has already gone wrong, which
+# is exactly the kind of thing that needs a check on the commit.
+#
+# Ubuntu because that is what cloud sessions run on. The suite is written to be
+# portable and does pass under Git Bash on Windows, but the hooks matter most in
+# the environment where the user-level config does not reach.
+
+name: checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      # node is what the JS half of the syntax gate shells out to. The runner
+      # has it already; naming it here is what makes those assertions actually
+      # run rather than skip, which is the whole reason they exist.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Confirm the JS check can actually run here
+        run: node --version
+
+      - name: Run the suite
+        run: bash tests/run-tests.sh
+
+  # Separate job: shellcheck is a static analyser, so its answer does not depend
+  # on anything the suite sets up, and a lint failure stays legible as a lint
+  # failure rather than as "the tests went red".
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      # -e SC1091: the hooks source lib.sh through a path built at runtime from
+      # ${CLAUDE_PLUGIN_ROOT}, which shellcheck cannot follow and would report
+      # on every single file. Everything else stays switched on.
+      - name: Lint the hook scripts
+        run: shellcheck -e SC1091 plugins/house/scripts/*.sh cloud-setup.sh tests/run-tests.sh
