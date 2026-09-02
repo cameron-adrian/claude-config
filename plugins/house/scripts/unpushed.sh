@@ -10,6 +10,11 @@
 #   1. It asks whether committing is even permitted before demanding one.
 #   2. It fires at most once per session, tracked by a marker file, so being
 #      wrong costs one turn rather than the rest of the session.
+#
+# shellcheck disable=SC2016
+# The message is markdown and quotes `git status` as inline code. Single
+# quotes are correct -- nothing should expand -- but shellcheck reads the
+# backticks as a command substitution.
 
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"

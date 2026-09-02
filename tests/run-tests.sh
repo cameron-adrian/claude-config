@@ -11,7 +11,7 @@
 
 set -u
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 SCRIPTS="$ROOT/plugins/house/scripts"
 PASS=0
 FAIL=0
