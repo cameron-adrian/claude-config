@@ -1,11 +1,23 @@
 {
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git -C \"C:/Users/Cameron/claude-config\" pull --ff-only --quiet 2>/dev/null || true",
+            "timeout": 20,
+            "statusMessage": "Syncing global CLAUDE.md",
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
   "enableWorkflows": true,
-  "autoUpdatesChannel": "latest",
-  "tui": "fullscreen",
-  "theme": "auto",
-  "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true,
-  "autoCompactWindow": 500000,
+  "enabledPlugins": {
+    "house@cameron-house": true
+  },
   "extraKnownMarketplaces": {
     "cameron-house": {
       "source": {
@@ -14,22 +26,10 @@
       }
     }
   },
-  "enabledPlugins": {
-    "house@cameron-house": true
-  },
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "git -C \"C:/Users/Cameron/claude-config\" pull --ff-only --quiet 2>/dev/null || true",
-            "async": true,
-            "timeout": 20,
-            "statusMessage": "Syncing global CLAUDE.md"
-          }
-        ]
-      }
-    ]
-  }
+  "autoCompactWindow": 500000,
+  "autoUpdatesChannel": "latest",
+  "tui": "fullscreen",
+  "theme": "auto",
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true
 }

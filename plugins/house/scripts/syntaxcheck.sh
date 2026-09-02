@@ -41,11 +41,22 @@ case "$f" in
     # compile() rather than py_compile, so the check leaves no __pycache__
     # behind. A syntax gate that dirties the working tree would get itself
     # switched off inside a week.
+    # The error is reported by hand rather than by letting the traceback out.
+    # A raw traceback leads with frames from this hook's own -c script, which
+    # points a reader at the wrong file entirely before it gets to the real one.
     out=$(house_py -c '
 import sys
 p = sys.argv[1]
-src = open(p, encoding="utf-8").read()
-compile(src, p, "exec")
+try:
+    compile(open(p, encoding="utf-8").read(), p, "exec")
+except SyntaxError as e:
+    sys.stderr.write("%s at %s line %s\n" % (e.msg, e.filename, e.lineno))
+    if e.text:
+        sys.stderr.write("  %s\n" % e.text.rstrip())
+    sys.exit(1)
+except Exception as e:
+    sys.stderr.write("%s\n" % e)
+    sys.exit(1)
 ' "$f" 2>&1)
     rc=$?
     [ "$rc" = 127 ] && exit 0
