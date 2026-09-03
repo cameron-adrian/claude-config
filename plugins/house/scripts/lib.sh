@@ -51,6 +51,29 @@ house_in_repo() {
   git rev-parse --git-dir >/dev/null 2>&1
 }
 
+# Enter the directory the hook's own JSON payload names as `cwd`, instead of
+# trusting the shell's ambient working directory. $1 is the raw payload.
+#
+# This exists because two Bash tool calls that each start with `cd <repo>` can
+# share one persistent shell. Running a job-search merge and a claude-config
+# merge in the same batch let this hook fire for the claude-config command
+# while the shared shell's directory was still mid-transition from the
+# concurrent job-search one -- git-gate.sh ran `gh pr view` with no `-R`, it
+# resolved against job-search's repo by ambient accident, found ITS draft PR
+# with the same number, and refused a perfectly mergeable claude-config PR
+# because of it. Reading the hook's own payload instead of the shell's shared
+# state removes the race outright.
+#
+# Silent no-op when the field is missing or unreadable: the caller falls back
+# to whatever the ambient cwd already is, exactly the old behavior.
+house_enter_payload_cwd() {
+  _dir=$(printf '%s' "$1" | house_json_field cwd)
+  if [ -n "$_dir" ] && [ -d "$_dir" ]; then
+    cd "$_dir" 2>/dev/null || true
+  fi
+  return 0
+}
+
 # The repo's default branch, as the remote reports it. Falls back through the
 # usual suspects, then gives up with empty output -- callers gate on that rather
 # than guessing "main" and acting on a wrong answer.

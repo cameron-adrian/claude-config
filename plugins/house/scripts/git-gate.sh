@@ -13,6 +13,7 @@ SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 
 input=$(cat)
+house_enter_payload_cwd "$input"
 cmd=$(printf '%s' "$input" | house_json_field tool_input.command)
 
 [ -n "$cmd" ] || exit 0

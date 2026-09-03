@@ -24,6 +24,9 @@
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 
+input=$(cat)
+house_enter_payload_cwd "$input"
+
 house_in_repo || exit 0
 
 # Warm the local refs for whatever comes next. Backgrounded and never waited on,
