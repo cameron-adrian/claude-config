@@ -175,3 +175,21 @@ Don't silently substitute Playwright for that and call the check done. If
 Claude-in-Chrome isn't connected in that session, say so plainly rather than
 skipping the verification quietly — same standard as the rule above for a
 session with no browser at all.
+
+## Recursive scans and deny-protected paths
+
+Before running a broad recursive read in a repo — `grep -r`, `find`, a
+directory-wide sweep for conflict markers or a string — check that repo's
+`.claude/settings.json` and `.claude/settings.local.json` for a
+`permissions.deny` entry naming a specific file (e.g.
+`Read(state/config.json)`). Exclude that path from the scan
+(`--exclude`/`--exclude-dir`, pruning it from the file list) instead of
+letting the sweep walk into it.
+
+A deny rule like that exists on purpose, almost always to keep a
+previously-leaked secret out of context, and nothing overrides it — not
+`permissions.allow`, not an auto-accept mode. Walking into it forces a manual
+approval no matter how routine the sweep is, which turns an unrelated check
+(conflict markers, a repo-wide search) into an interruption for no reason.
+Scoping the sweep around the path keeps the protection intact without the
+friction.
