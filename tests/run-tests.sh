@@ -69,6 +69,7 @@ done
 for j in "$ROOT/.claude-plugin/marketplace.json" \
          "$ROOT/plugins/house/.claude-plugin/plugin.json" \
          "$ROOT/plugins/house/hooks/hooks.json" \
+         "$ROOT/plugins/house/.mcp.json" \
          "$ROOT/settings.json"; do
   if "$PY_BIN" -c "import json,sys;json.load(open(sys.argv[1]))" "$j" 2>"$TMP/e"; then
     pass "valid json: $(basename "$(dirname "$j")")/$(basename "$j")"
@@ -76,6 +77,20 @@ for j in "$ROOT/.claude-plugin/marketplace.json" \
     fail "valid json: $j" "$(cat "$TMP/e")"
   fi
 done
+
+# The Playwright server's args must keep --isolated. Without it, concurrent
+# sessions share one persistent browser profile and conflict outright -- see
+# the README note this was built against. A regression here would silently
+# reintroduce exactly the collision this tool exists to avoid.
+mcp_args=$("$PY_BIN" -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(" ".join(d["mcpServers"]["playwright"]["args"]))
+' "$ROOT/plugins/house/.mcp.json" 2>"$TMP/e")
+case "$mcp_args" in
+  *"--isolated"*) pass "playwright mcp: --isolated is set";;
+  *) fail "playwright mcp: --isolated is set" "args were: $mcp_args";;
+esac
 
 # Every hook the manifest wires up must actually exist. A renamed script with a
 # stale manifest entry is the classic way a gate silently stops running.
