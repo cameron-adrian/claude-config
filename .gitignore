@@ -1,0 +1,4 @@
+# Remote Control's on-demand worktree checkouts. Created and torn down by
+# `claude remote-control --spawn worktree` as sessions connect and disconnect --
+# machine-local runtime state, not source. Never commit these.
+.claude/worktrees/

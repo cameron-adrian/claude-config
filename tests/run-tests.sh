@@ -223,6 +223,30 @@ mkdir -p "$NOCI"
 out=$(cd "$NOCI" && printf '{"tool_input":{"command":"git push origin main"}}' | bash "$SCRIPTS/git-gate.sh" 2>/dev/null)
 expect_empty "$out" "no CI means no push gate"
 
+printf '\n== payload cwd wins over ambient shell cwd ==\n'
+
+# The bug this guards: two Bash tool calls that each start with `cd <repo>`
+# can share one persistent shell, so a hook can fire while the shared shell's
+# directory is still mid-transition from a *different*, concurrently-running
+# command. That let a claude-config merge get evaluated against job-search's
+# repo by ambient accident, find job-search's own draft PR under the same
+# number, and refuse a perfectly mergeable claude-config PR because of it.
+#
+# Both cases below deliberately mismatch the ambient shell cwd against the
+# payload's own cwd field, and assert the payload wins.
+
+# Ambient = NOCI (no CI, ungated); payload cwd = REPO (has CI, gated). If the
+# hook were still trusting ambient cwd, this push would sail through silently.
+out=$(cd "$NOCI" && printf '{"tool_input":{"command":"git push origin main"},"cwd":"%s"}' "$REPO" | bash "$SCRIPTS/git-gate.sh" 2>/dev/null)
+case "$out" in *'"deny"'*) pass "payload cwd overrides an ambient no-CI directory";;
+  *) fail "payload cwd overrides an ambient no-CI directory" "got: $out";; esac
+
+# Ambient = REPO (has CI, gated); payload cwd = NOCI (no CI, ungated). If the
+# hook were still trusting ambient cwd, this push would be refused when it
+# shouldn't be.
+out=$(cd "$REPO" && printf '{"tool_input":{"command":"git push origin main"},"cwd":"%s"}' "$NOCI" | bash "$SCRIPTS/git-gate.sh" 2>/dev/null)
+expect_empty "$out" "payload cwd overrides an ambient CI directory"
+
 printf '\n== blocked-permission detection ==\n'
 
 . "$SCRIPTS/lib.sh"
