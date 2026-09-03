@@ -154,3 +154,24 @@ clicked.
 Same for blocked work. If a session physically cannot commit or push, say so
 the turn you find out, hand me a patch and the exact commands to apply it, and
 then stop mentioning it.
+
+## Browser access: pick the right one, and ask when you need mine
+
+Two browser tools reach every repo through the house plugin: a Playwright MCP
+server (its own throwaway, isolated browser, headless by default — safe to run
+in every parallel session at once, never my actual profile) and Claude-in-Chrome
+(drives my real Chrome — real logins, real other extensions, and the only one
+that shows a human-visible window when I want to watch).
+
+Default to Playwright for anything that doesn't need my real browsing context:
+general web checks, scraping, screenshots, CI-style verification. It's isolated
+per session on purpose, so nothing about running several sessions at once
+should ever make it collide with itself.
+
+Reach for Claude-in-Chrome, and ask for it explicitly, when the task genuinely
+needs my browser — validating a repo that IS a Chrome extension, anything
+needing a real logged-in session, or anything I should be able to watch happen.
+Don't silently substitute Playwright for that and call the check done. If
+Claude-in-Chrome isn't connected in that session, say so plainly rather than
+skipping the verification quietly — same standard as the rule above for a
+session with no browser at all.
