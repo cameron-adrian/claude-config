@@ -156,3 +156,21 @@ print(json.dumps({
   }
   exit 0
 }
+
+# Emit a PreToolUse approval, so a call the session would otherwise be prompted
+# for runs straight through. The mirror of house_deny, and it fails the same
+# way: no interpreter to build the JSON means no decision at all, which leaves
+# the normal prompt in place rather than wedging anything.
+house_allow() {
+  house_py -c '
+import sys, json
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "allow",
+        "permissionDecisionReason": sys.argv[1],
+    }
+}))
+' "$1" 2>/dev/null || exit 0
+  exit 0
+}
