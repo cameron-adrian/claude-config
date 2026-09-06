@@ -16,6 +16,10 @@
 # FAIL OPEN, like every house hook: no interpreter, no origin, a command shape
 # the vetting does not recognise -- all of those exit without a decision and
 # leave the prompt exactly where it was.
+#
+# shellcheck disable=SC2016
+# The single-quoted string passed to `house_py -c` is python source, not shell.
+# Nothing in it is meant to expand.
 
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
@@ -39,7 +43,7 @@ house_in_repo || exit 0
 url=$(git remote get-url origin 2>/dev/null) || exit 0
 [ -n "$url" ] || exit 0
 
-owners=${HOUSE_TRUSTED_OWNERS:-$DEFAULT_OWNERS}
+owners="${HOUSE_TRUSTED_OWNERS:-$DEFAULT_OWNERS}"
 
 # One python pass does both halves: work out who owns `origin`, and decide
 # whether every segment of the command is something we are willing to wave

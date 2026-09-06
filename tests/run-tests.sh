@@ -287,6 +287,9 @@ case "$out" in *'"allow"'*) pass "owned repo: feature-branch push is approved";;
 
 # The commit style the workflow actually uses: message built from a quoted
 # command substitution with a heredoc inside. It must tokenise as one segment.
+# shellcheck disable=SC2016
+# The single-quoted arg is a command string for the hook to parse, not for this
+# shell to expand.
 out=$(owner_allow "$OWNED" 'git commit -m "$(cat <<EOF
 title
 
