@@ -29,12 +29,13 @@ would mean eight PRs every time a rule changes.
 
 ## The `house` plugin
 
-Four hooks, each one a bug that actually happened:
+Five hooks, most of them a bug that actually happened:
 
-| Hook | Event | What it stops |
+| Hook | Event | What it does |
 |---|---|---|
-| `syntaxcheck.sh` | after every write | A file that no longer parses. Caught by accident last time, when `node --check` happened to run after a script ate a closing brace |
-| `git-gate.sh` | before every Bash call | Force-pushes to the default branch; direct pushes that route around CI; merging a draft, a red PR, or one whose base has moved underneath it |
+| `syntaxcheck.sh` | after every write | Blocks a file that no longer parses. Caught by accident last time, when `node --check` happened to run after a script ate a closing brace |
+| `git-gate.sh` | before every Bash call | Refuses force-pushes to the default branch; direct pushes that route around CI; merging a draft, a red PR, or one whose base has moved underneath it |
+| `owner-allow.sh` | before every Bash call | Auto-approves the everyday git write flow (`add`/`commit`/`push`/`pull`/`merge`/`rebase`/… and `gh pr create`/`merge`) — but only when `origin` is a github.com repo owned by a trusted account (`cameron-adrian` by default; override with `HOUSE_TRUSTED_OWNERS`). Never denies; `git-gate.sh` still guards the dangerous cases above |
 | `orient.sh` | session start | Answering "what changed recently" from a clone that only has `main`, and reporting a confident *nothing* while four branches sit on the remote |
 | `unpushed.sh` | session end | Work left uncommitted — while staying silent when a deny rule makes committing impossible, which is what made the previous version fire uselessly at every turn |
 
