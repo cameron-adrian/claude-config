@@ -58,7 +58,7 @@ trap 'rm -rf "$TMP" 2>/dev/null || true' EXIT
 
 printf '\n== static checks ==\n'
 
-for s in "$SCRIPTS"/*.sh "$ROOT/cloud-setup.sh" "$ROOT/tests/run-tests.sh"; do
+for s in "$SCRIPTS"/*.sh "$ROOT"/ci/*.sh "$ROOT/cloud-setup.sh" "$ROOT/tests/run-tests.sh"; do
   if sh -n "$s" 2>"$TMP/e"; then
     pass "parses: $(basename "$s")"
   else
@@ -452,6 +452,97 @@ case "$out" in *"uncommitted"*) pass "reports uncommitted work";; *) fail "repor
 
 out=$( cd "$TMP" && printf '{}' | bash "$SCRIPTS/orient.sh" 2>/dev/null )
 expect_empty "$out" "says nothing outside a git repo"
+
+printf '\n== version-bump gate ==\n'
+
+# A fixture repo shaped like this one: a plugin manifest with a version, a
+# script under the watched directory, and a `main` to diff a branch against.
+#
+# Both directions matter, same as every other gate here. If it stops failing,
+# plugin changes ship to nobody while CI stays green -- the exact silent
+# failure it was written for, now invisible twice over. If it starts failing on
+# work that never touched the plugin, it blocks unrelated PRs and gets deleted.
+VREPO="$TMP/vrepo"
+mkdir -p "$VREPO/plugins/house/.claude-plugin" "$VREPO/plugins/house/scripts"
+(
+  cd "$VREPO" || exit 1
+  git init -q -b main .
+  git config user.email t@t.t
+  git config user.name t
+  printf '{"name":"house","version":"1.0.0"}\n' >plugins/house/.claude-plugin/plugin.json
+  printf 'echo hi\n' >plugins/house/scripts/thing.sh
+  printf 'notes\n' >README.md
+  git add -A
+  git commit -qm init
+) >/dev/null 2>&1
+
+# $1 = human name for the case, run on a branch off main.
+version_gate() { ( cd "$VREPO" && bash "$ROOT/ci/require-version-bump.sh" main >/dev/null 2>&1; echo $? ); }
+
+# Case: plugin script edited, version left alone. Must fail.
+(
+  cd "$VREPO" || exit 1
+  git checkout -qb no-bump main
+  printf 'echo changed\n' >plugins/house/scripts/thing.sh
+  git commit -qam "edit a hook, forget the bump"
+) >/dev/null 2>&1
+expect_eq "1" "$(version_gate)" "plugin changed without a version bump is refused"
+
+# Case: same edit, version moved. Must pass.
+(
+  cd "$VREPO" || exit 1
+  git checkout -qb bumped main
+  printf 'echo changed\n' >plugins/house/scripts/thing.sh
+  printf '{"name":"house","version":"1.1.0"}\n' >plugins/house/.claude-plugin/plugin.json
+  git commit -qam "edit a hook and bump"
+) >/dev/null 2>&1
+expect_eq "0" "$(version_gate)" "plugin changed with a version bump passes"
+
+# Case: nothing under the plugin touched. Must pass, or it blocks every PR
+# that only edits docs, CI, or the tests themselves -- including this one.
+(
+  cd "$VREPO" || exit 1
+  git checkout -qb docs-only main
+  printf 'more notes\n' >>README.md
+  git commit -qam "docs only"
+) >/dev/null 2>&1
+expect_eq "0" "$(version_gate)" "a change outside the plugin needs no bump"
+
+# Case: the manifest does not exist on the base at all. That is a first
+# release, not a forgotten bump.
+NEWPLUG="$TMP/newplug"
+mkdir -p "$NEWPLUG"
+(
+  cd "$NEWPLUG" || exit 1
+  git init -q -b main .
+  git config user.email t@t.t
+  git config user.name t
+  printf 'notes\n' >README.md
+  git add -A
+  git commit -qm init
+  git checkout -qb add-plugin main
+  mkdir -p plugins/house/.claude-plugin
+  printf '{"name":"house","version":"0.1.0"}\n' >plugins/house/.claude-plugin/plugin.json
+  git add -A
+  git commit -qm "first release"
+) >/dev/null 2>&1
+rc=$( cd "$NEWPLUG" && bash "$ROOT/ci/require-version-bump.sh" main >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "a brand-new manifest is a first release, not a missed bump"
+
+# Unlike the session hooks, this one must NOT fail open: a CI check that cannot
+# tell whether it is safe has to say so rather than wave the change through.
+rc=$( cd "$VREPO" && bash "$ROOT/ci/require-version-bump.sh" no-such-ref >/dev/null 2>&1; echo $? )
+expect_eq "2" "$rc" "an unreachable base ref errors rather than passing"
+
+rc=$( cd "$VREPO" && bash "$ROOT/ci/require-version-bump.sh" >/dev/null 2>&1; echo $? )
+expect_eq "2" "$rc" "a missing base ref argument errors rather than passing"
+
+# The real manifest must stay readable by the same parser the gate uses, or the
+# gate errors on every plugin PR.
+real_v=$("$PY_BIN" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
+  "$ROOT/plugins/house/.claude-plugin/plugin.json" 2>/dev/null)
+if [ -n "$real_v" ]; then pass "the real plugin.json exposes a version ($real_v)"
+else fail "the real plugin.json exposes a version" "could not read one"; fi
 
 printf '\n----------------------------------------\n'
 printf '%s passed, %s failed\n\n' "$PASS" "$FAIL"
