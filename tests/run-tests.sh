@@ -679,6 +679,8 @@ with a body
 EOF")
 expect_empty "$out" "a heredoc commit message is untouched"
 
+# shellcheck disable=SC2016
+# The command string is for the hook to parse, not for this shell to expand.
 out=$(splice 'gh pr create --body "$(cat <<EOF
 body text
 EOF
@@ -747,6 +749,8 @@ expect_eq "0" "$(weak tests/thing.test.js w3)" "house-skip-ok on the line stands
 
 # Cleanup code in a test fixture is not a weakened check. This is the false
 # positive that would get the hook deleted inside a week.
+# shellcheck disable=SC2016
+# Fixture text written into a test file, not an expression for this shell.
 printf 'rm -rf "$TMP" || true\n' >>"$WEAK/tests/thing.test.js"
 expect_eq "0" "$(weak tests/thing.test.js w4)" "|| true in a test fixture is not flagged"
 

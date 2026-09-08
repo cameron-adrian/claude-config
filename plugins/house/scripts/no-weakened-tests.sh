@@ -42,7 +42,7 @@ f=$(printf '%s' "$input" | house_json_field tool_input.file_path)
 scope="test"
 case "$f" in
   */.github/workflows/*|*\\.github\\workflows\\*) scope="workflow" ;;
-  *test*|*Test*|*spec*|*Spec*|*conftest.py) ;;
+  *test*|*Test*|*spec*|*Spec*) ;;
   *) exit 0 ;;
 esac
 
