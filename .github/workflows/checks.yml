@@ -7,9 +7,14 @@
 # switched off. Neither shows up until something has already gone wrong, which
 # is exactly the kind of thing that needs a check on the commit.
 #
-# Ubuntu because that is what cloud sessions run on. The suite is written to be
-# portable and does pass under Git Bash on Windows, but the hooks matter most in
-# the environment where the user-level config does not reach.
+# Both operating systems, because the hooks genuinely run on both. Ubuntu is
+# what cloud sessions run on. Windows is the machine the work actually happens
+# on, and the suite carries real accommodations for it -- the
+# python3/python/py interpreter fallback, stripping the carriage returns
+# python writes into text on Windows, tolerating a still-held file handle at
+# cleanup. Running Ubuntu alone left every one of those unexercised, so a
+# change that broke Git Bash stayed green here and surfaced interactively
+# instead.
 
 name: checks
 
@@ -20,7 +25,20 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Windows failing must not cancel the Ubuntu answer, or vice versa: which
+      # platforms broke is the whole diagnostic here.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    # The suite is bash. On the Windows runner the default shell is PowerShell,
+    # so without this every `run:` below would be parsed by the wrong shell.
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - uses: actions/checkout@v5
@@ -58,4 +76,31 @@ jobs:
       # ${CLAUDE_PLUGIN_ROOT}, which shellcheck cannot follow and would report
       # on every single file. Everything else stays switched on.
       - name: Lint the hook scripts
-        run: shellcheck -e SC1091 plugins/house/scripts/*.sh cloud-setup.sh tests/run-tests.sh
+        run: shellcheck -e SC1091 plugins/house/scripts/*.sh cloud-setup.sh tests/run-tests.sh ci/*.sh
+
+  # The most consequential silent failure this repo has. Installs only pick up
+  # new hook code when `version` in plugin.json moves, so a change to the
+  # plugin that forgets the bump ships nothing: every machine and every cloud
+  # session keeps running the old scripts, the PR is green, the commit is on
+  # main, and the fix is simply not in effect anywhere. Nothing about that is
+  # visible until someone notices the old behaviour months later.
+  #
+  # PR-only on purpose: it needs a base branch to diff against, which a bare
+  # push to a branch does not have.
+  plugin-version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      # Full history: the merge-base with the target branch has to be reachable
+      # or the three-dot diff below has nothing to compare against.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # The check lives in a script rather than inline here so the suite can
+      # exercise it against fixture repos. An inline YAML gate that quietly
+      # stopped failing would be invisible in exactly the way this repo tests
+      # against everywhere else.
+      - name: Require a version bump when the plugin changes
+        run: bash ci/require-version-bump.sh "origin/${{ github.base_ref }}"

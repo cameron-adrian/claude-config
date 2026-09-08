@@ -103,6 +103,11 @@ A symlink keeps two paths on disk identical and does nothing about GitHub.
 - **Plugin updates:** bump `version` in `plugins/house/.claude-plugin/plugin.json`
   on every change. Installs only pick up a new version when that field moves, so
   a forgotten bump means every machine silently keeps running the old hooks.
+  `ci/require-version-bump.sh` now enforces this on every pull request: touch
+  anything under `plugins/house/` without moving that field and the check goes
+  red. It is the one gate here that deliberately does *not* fail open — a hook
+  that wedges a session is worse than the bug it watches for, but a CI check
+  that cannot tell whether it is safe has no such excuse.
 
 ## Tests
 
@@ -110,7 +115,14 @@ A symlink keeps two paths on disk identical and does nothing about GitHub.
 bash tests/run-tests.sh
 ```
 
-CI runs them on every push and PR. They are aimed at the two ways a gate fails
+CI runs them on every push and PR, on **both Ubuntu and Windows** — Ubuntu
+because that is what cloud sessions run on, Windows because it is the machine
+the work happens on and the suite carries real accommodations for it (the
+`python3`/`python`/`py` fallback, stripping the carriage returns Python writes
+into text there, tolerating a still-held file handle at cleanup). Running
+Ubuntu alone left every one of those unexercised.
+
+They are aimed at the two ways a gate fails
 without anyone noticing: it stops firing on bad input, so broken code sails
 through and everything *looks* fine; or it starts firing on correct input, at
 which point it gets switched off and takes every other protection with it. Both
