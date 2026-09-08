@@ -29,11 +29,15 @@ would mean eight PRs every time a rule changes.
 
 ## The `house` plugin
 
-Five hooks, most of them a bug that actually happened:
+Nine hooks, most of them a bug that actually happened:
 
 | Hook | Event | What it does |
 |---|---|---|
 | `syntaxcheck.sh` | after every write | Blocks a file that no longer parses. Caught by accident last time, when `node --check` happened to run after a script ate a closing brace |
+| `no-script-splicing.sh` | before every Bash call | Refuses `sed -i`, a heredoc redirected into a code file, or an inline interpreter string-replace. The rule saying to use Edit and Write already exists in prose and loses arguments with session-level steers that prefer Bash for edits; a gate does not |
+| `no-weakened-tests.sh` | after every write | Reports a *newly added* skip, `.only`, `xfail`, or `continue-on-error: true` in a test or workflow file. A suite that has been quietly skipped is worse than none: it reports that there was nothing to catch. `house-skip-ok` on the line stands it down |
+| `deny-path-scan.sh` | before every Bash call | Scopes a recursive sweep around any file behind a `Read(...)` deny rule, and hands back the exact `--exclude` to add. Walking into one cannot read it — it just stalls an unrelated search on an approval that can never be granted |
+| `unverified-done.sh` | session end | Says so, once, when source files changed and no test, build, lint or parse command ever ran. Reads the transcript, since `git status` cannot answer whether anything was executed |
 | `git-gate.sh` | before every Bash call | Refuses force-pushes to the default branch; direct pushes that route around CI; merging a draft, a red PR, or one whose base has moved underneath it |
 | `owner-allow.sh` | before every Bash call | Auto-approves the everyday git write flow (`add`/`commit`/`push`/`pull`/`merge`/`rebase`/… and `gh pr create`/`merge`) — but only when `origin` is a github.com repo owned by a trusted account (`cameron-adrian` by default; override with `HOUSE_TRUSTED_OWNERS`). Never denies; `git-gate.sh` still guards the dangerous cases above |
 | `orient.sh` | session start | Answering "what changed recently" from a clone that only has `main`, and reporting a confident *nothing* while four branches sit on the remote |

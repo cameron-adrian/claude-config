@@ -626,6 +626,277 @@ case $(grep -c 'raw.githubusercontent.com/cameron-adrian/claude-config/main/CLAU
   *) pass "cloud-setup: default URL points at this repo's CLAUDE.md";;
 esac
 
+printf '\n== no-script-splicing ==\n'
+
+# Both directions, as everywhere else. The false-positive half matters more
+# than usual here: this hook sits on every Bash call, and the commands it must
+# NOT touch -- a heredoc commit message, a read-only python one-liner, an
+# append to a log -- are ones the workflow uses constantly.
+splice() {
+  printf '{"tool_input":{"command":%s}}' "$(json_str "$1")" \
+    | bash "$SCRIPTS/no-script-splicing.sh" 2>/dev/null
+}
+
+out=$(splice "sed -i 's/a/b/' src/app.js")
+case "$out" in *'"deny"'*) pass "sed -i on a code file is refused";;
+  *) fail "sed -i on a code file is refused" "got: $out";; esac
+
+out=$(splice "sed -i.bak 's/a/b/' lib/thing.py")
+case "$out" in *'"deny"'*) pass "sed -i.bak counts as in-place";;
+  *) fail "sed -i.bak counts as in-place" "got: $out";; esac
+
+out=$(splice "perl -pi -e 's/a/b/' main.go")
+case "$out" in *'"deny"'*) pass "perl -i on a code file is refused";;
+  *) fail "perl -i on a code file is refused" "got: $out";; esac
+
+out=$(splice "cat > lib/thing.py <<'EOF'
+def f():
+    return 1
+EOF")
+case "$out" in *'"deny"'*) pass "heredoc redirected into a code file is refused";;
+  *) fail "heredoc redirected into a code file is refused" "got: $out";; esac
+
+# The other word order for the same thing.
+out=$(splice "cat <<'EOF' > app/index.ts
+export const x = 1
+EOF")
+case "$out" in *'"deny"'*) pass "heredoc-then-redirect is refused too";;
+  *) fail "heredoc-then-redirect is refused too" "got: $out";; esac
+
+out=$(splice 'python3 -c "open(\"src/app.js\",\"w\").write(s.replace(a,b))"')
+case "$out" in *'"deny"'*) pass "inline python rewriting a code file is refused";;
+  *) fail "inline python rewriting a code file is refused" "got: $out";; esac
+
+# --- and the far more important half: what it must leave alone ---
+
+out=$(splice "echo 'built ok' >> build.log")
+expect_empty "$out" "appending to a log is untouched"
+
+out=$(splice "git commit -F - <<'EOF'
+a commit message
+
+with a body
+EOF")
+expect_empty "$out" "a heredoc commit message is untouched"
+
+# shellcheck disable=SC2016
+# The command string is for the hook to parse, not for this shell to expand.
+out=$(splice 'gh pr create --body "$(cat <<EOF
+body text
+EOF
+)"')
+expect_empty "$out" "a heredoc PR body is untouched"
+
+out=$(splice 'python3 -c "import json; print(json.load(open(\"plugin.json\"))[\"version\"])"')
+expect_empty "$out" "a read-only python one-liner is untouched"
+
+out=$(splice "sed -n '1,20p' src/app.js")
+expect_empty "$out" "sed without -i is untouched"
+
+out=$(splice "grep -n 'thing' src/app.js")
+expect_empty "$out" "reading a code file is untouched"
+
+out=$(splice "sed -i 's/a/b/' notes.md")
+expect_empty "$out" "sed -i on markdown is not this gate's business"
+
+out=$(splice "sed -i 's/a/b/' src/app.js  #gate-ok")
+expect_empty "$out" "#gate-ok overrides the splicing gate"
+
+out=$(printf 'not json' | bash "$SCRIPTS/no-script-splicing.sh" 2>/dev/null)
+expect_empty "$out" "unparseable payload is skipped"
+
+printf '\n== no-weakened-tests ==\n'
+
+export CLAUDE_PLUGIN_DATA="$TMP/plugindata"
+
+WEAK="$TMP/weak"
+mkdir -p "$WEAK/tests" "$WEAK/src" "$WEAK/.github/workflows"
+(
+  cd "$WEAK" || exit 1
+  git init -q -b main .
+  git config user.email t@t.t
+  git config user.name t
+  printf 'it("works", () => { expect(1).toBe(1) })\n' >tests/thing.test.js
+  printf 'export const x = 1\n' >src/app.js
+  printf 'name: c\non: [push]\njobs:\n  t:\n    steps:\n      - run: npm test\n' \
+    >.github/workflows/c.yml
+  git add -A
+  git commit -qm init
+) >/dev/null 2>&1
+
+weak() {  # $1 = file (relative), $2 = session id
+  ( cd "$WEAK" && printf '{"tool_input":{"file_path":"%s/%s"},"cwd":"%s","session_id":"%s"}' \
+      "$WEAK" "$1" "$WEAK" "$2" \
+      | bash "$SCRIPTS/no-weakened-tests.sh" >/dev/null 2>&1; echo $? )
+}
+
+printf 'it.only("works", () => { expect(1).toBe(1) })\n' >>"$WEAK/tests/thing.test.js"
+expect_eq "2" "$(weak tests/thing.test.js w1)" "a newly added .only is reported"
+
+# Same file, same session: the diff still shows the line, and a hook that
+# repeats itself at every write gets switched off.
+expect_eq "0" "$(weak tests/thing.test.js w1)" "it does not report the same file twice in a session"
+
+# A different session sees it again -- the dedupe is per session, not forever.
+expect_eq "2" "$(weak tests/thing.test.js w2)" "a new session reports it again"
+
+printf 'it.skip("later", () => {}) // house-skip-ok: needs a real device\n' \
+  >>"$WEAK/tests/thing.test.js"
+(cd "$WEAK" && git commit -qam "accept" ) >/dev/null 2>&1
+printf 'it.skip("another", () => {}) // house-skip-ok: same reason\n' \
+  >>"$WEAK/tests/thing.test.js"
+expect_eq "0" "$(weak tests/thing.test.js w3)" "house-skip-ok on the line stands it down"
+
+# Cleanup code in a test fixture is not a weakened check. This is the false
+# positive that would get the hook deleted inside a week.
+# shellcheck disable=SC2016
+# Fixture text written into a test file, not an expression for this shell.
+printf 'rm -rf "$TMP" || true\n' >>"$WEAK/tests/thing.test.js"
+expect_eq "0" "$(weak tests/thing.test.js w4)" "|| true in a test fixture is not flagged"
+
+# ...but in a CI step it is exactly the thing.
+printf '      - run: npm test || true\n' >>"$WEAK/.github/workflows/c.yml"
+expect_eq "2" "$(weak .github/workflows/c.yml w5)" "|| true in a workflow step is flagged"
+
+(cd "$WEAK" && git commit -qam "accept" ) >/dev/null 2>&1
+printf '    continue-on-error: true\n' >>"$WEAK/.github/workflows/c.yml"
+expect_eq "2" "$(weak .github/workflows/c.yml w6)" "continue-on-error: true is flagged"
+
+# Not a test file at all.
+printf 'const y = x.skip(1)\n' >>"$WEAK/src/app.js"
+expect_eq "0" "$(weak src/app.js w7)" "a non-test file is left alone"
+
+# An existing skip that this write did not introduce must stay quiet, or every
+# touch of a file that legitimately skips something becomes an argument.
+SETTLED="$TMP/settled"
+mkdir -p "$SETTLED/tests"
+(
+  cd "$SETTLED" || exit 1
+  git init -q -b main .
+  git config user.email t@t.t
+  git config user.name t
+  printf 'it.skip("old", () => {})\n' >tests/old.test.js
+  git add -A
+  git commit -qm init
+  printf 'it("new", () => {})\n' >>tests/old.test.js
+) >/dev/null 2>&1
+rc=$( cd "$SETTLED" && printf '{"tool_input":{"file_path":"%s/tests/old.test.js"},"cwd":"%s","session_id":"s9"}' \
+        "$SETTLED" "$SETTLED" | bash "$SCRIPTS/no-weakened-tests.sh" >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "a pre-existing skip is not re-litigated"
+
+rc=$( printf '{"tool_input":{}}' | bash "$SCRIPTS/no-weakened-tests.sh" >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "payload with no path is skipped"
+
+printf '\n== unverified-done ==\n'
+
+# A transcript fixture, in the shape the hook reads: JSONL, one message per
+# line, tool calls nested in the content array.
+tw() { printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"%s"}}]}}\n' "$1"; }
+tb() { printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":%s}}]}}\n' "$(json_str "$1")"; }
+
+unverified() {  # $1 = transcript file, $2 = session id
+  printf '{"transcript_path":"%s","session_id":"%s"}' "$1" "$2" \
+    | bash "$SCRIPTS/unverified-done.sh" >/dev/null 2>&1
+  echo $?
+}
+
+{ tw "/w/app.py"; tb "git status"; tb "ls -la"; } >"$TMP/t-noverify.jsonl"
+expect_eq "2" "$(unverified "$TMP/t-noverify.jsonl" u1)" "code changed and nothing run is flagged"
+expect_eq "0" "$(unverified "$TMP/t-noverify.jsonl" u1)" "it does not fire twice in one session"
+
+{ tw "/w/app.py"; tb "python3 -m pytest -q"; } >"$TMP/t-pytest.jsonl"
+expect_eq "0" "$(unverified "$TMP/t-pytest.jsonl" u2)" "a pytest run satisfies it"
+
+{ tw "/w/app.js"; tb "npm test"; } >"$TMP/t-npm.jsonl"
+expect_eq "0" "$(unverified "$TMP/t-npm.jsonl" u3)" "an npm test run satisfies it"
+
+{ tw "/w/hook.sh"; tb "bash tests/run-tests.sh"; } >"$TMP/t-suite.jsonl"
+expect_eq "0" "$(unverified "$TMP/t-suite.jsonl" u4)" "running a repo suite satisfies it"
+
+# Docs-only work has nothing to run, and nagging about it is how the hook
+# would earn its way into being switched off.
+{ tw "/w/README.md"; tw "/w/HOOK-IDEAS.md"; tb "git commit -m docs"; } >"$TMP/t-docs.jsonl"
+expect_eq "0" "$(unverified "$TMP/t-docs.jsonl" u5)" "a docs-only session is not nagged"
+
+# Fail open, and in the right direction: an unrecognised transcript must mean
+# silence, not a nag at the end of every session.
+printf '{"type":"user","message":{"content":"hello"}}\n' >"$TMP/t-empty.jsonl"
+expect_eq "0" "$(unverified "$TMP/t-empty.jsonl" u6)" "a transcript with no tool calls says nothing"
+
+printf 'not json at all\n' >"$TMP/t-garbage.jsonl"
+expect_eq "0" "$(unverified "$TMP/t-garbage.jsonl" u7)" "an unparseable transcript says nothing"
+
+expect_eq "0" "$(unverified "$TMP/does-not-exist.jsonl" u8)" "a missing transcript says nothing"
+
+rc=$( printf '{"session_id":"u9"}' | bash "$SCRIPTS/unverified-done.sh" >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "no transcript path at all says nothing"
+
+printf '\n== deny-path-scan ==\n'
+
+DENYR="$TMP/denyrepo"
+mkdir -p "$DENYR/.claude" "$DENYR/state" "$DENYR/src"
+(
+  cd "$DENYR" || exit 1
+  git init -q -b main .
+  git config user.email t@t.t
+  git config user.name t
+  printf '{"permissions":{"deny":["Read(state/config.json)"]}}\n' >.claude/settings.json
+  printf '{"secret":1}\n' >state/config.json
+  printf 'x\n' >src/app.js
+) >/dev/null 2>&1
+
+scan() {  # $1 = command
+  ( cd "$DENYR" && printf '{"tool_input":{"command":%s},"cwd":"%s"}' \
+      "$(json_str "$1")" "$DENYR" \
+      | bash "$SCRIPTS/deny-path-scan.sh" 2>/dev/null )
+}
+
+out=$(scan "grep -r thing .")
+case "$out" in *'"deny"'*) pass "a repo-wide grep -r into a denied path is refused";;
+  *) fail "a repo-wide grep -r into a denied path is refused" "got: $out";; esac
+case "$out" in *"--exclude=config.json"*) pass "the refusal hands back the exclude flag";;
+  *) fail "the refusal hands back the exclude flag" "got: $out";; esac
+
+out=$(scan "rg thing")
+case "$out" in *'"deny"'*) pass "rg is recursive by default and is gated";;
+  *) fail "rg is recursive by default and is gated" "got: $out";; esac
+case "$out" in *"--glob"*) pass "the rg correction uses --glob";;
+  *) fail "the rg correction uses --glob" "got: $out";; esac
+
+out=$(scan "find . -name '*.json'")
+case "$out" in *'"deny"'*) pass "find over the repo root is gated";;
+  *) fail "find over the repo root is gated" "got: $out";; esac
+
+# --- what it must not touch ---
+
+out=$(scan "grep -r thing . --exclude=config.json")
+expect_empty "$out" "an already-excluded sweep runs"
+
+out=$(scan "grep -r thing src/")
+expect_empty "$out" "a sweep that cannot reach the denied path runs"
+
+out=$(scan "grep thing src/app.js")
+expect_empty "$out" "a non-recursive grep runs"
+
+out=$(scan "grep -r thing . #gate-ok")
+expect_empty "$out" "#gate-ok overrides the scan gate"
+
+out=$(scan "ls -la")
+expect_empty "$out" "an unrelated command is ignored"
+
+# No settings file, so nothing is protected and nothing is gated.
+out=$( cd "$NOCI" && printf '{"tool_input":{"command":"grep -r thing ."},"cwd":"%s"}' "$NOCI" \
+        | bash "$SCRIPTS/deny-path-scan.sh" 2>/dev/null )
+expect_empty "$out" "a repo with no deny rules is never gated"
+
+# A deny rule that is not a Read() rule protects no path.
+OTHERDENY="$TMP/otherdeny"
+mkdir -p "$OTHERDENY/.claude"
+printf '{"permissions":{"deny":["Bash(rm *)"]}}\n' >"$OTHERDENY/.claude/settings.json"
+out=$( cd "$OTHERDENY" && printf '{"tool_input":{"command":"grep -r thing ."},"cwd":"%s"}' "$OTHERDENY" \
+        | bash "$SCRIPTS/deny-path-scan.sh" 2>/dev/null )
+expect_empty "$out" "a non-Read deny rule does not gate a sweep"
+
 printf '\n== version-bump gate ==\n'
 
 # A fixture repo shaped like this one: a plugin manifest with a version, a
