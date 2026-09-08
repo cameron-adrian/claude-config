@@ -7,7 +7,7 @@
             "type": "command",
             "command": "git -C \"C:/Users/Cameron/claude-config\" pull --ff-only --quiet 2>/dev/null || true",
             "timeout": 20,
-            "statusMessage": "Syncing global CLAUDE.md",
+            "statusMessage": "Syncing house-rules.md",
             "async": true
           }
         ]

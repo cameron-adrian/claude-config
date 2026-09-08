@@ -7,7 +7,7 @@ an idea actually resolved, not a reason to delete it.
 Status values: `open`, `in progress`, `done`, `deferred`.
 
 The organizing principle behind every entry below: **the best hook candidates
-are rules already written in `CLAUDE.md` that get silently ignored.** A prose
+are rules already written in `house-rules.md` that get silently ignored.** A prose
 rule competes with session-level steers and loses — the session that produced
 this list was itself instructed to edit files with `sed`, which the house rules
 forbid outright. A hook does not lose that argument.
@@ -28,7 +28,7 @@ the session can act on, `#gate-ok` escape hatch where a Bash gate is involved.
 **1. `no-script-splicing` — PreToolUse/Bash — `done` (2026-09-08, plugin 1.2.0)**
 Refuse `sed -i`, heredoc redirects into source files, and `python -c`
 string-replace when the target is a code file. The rule against this is already
-explicit in `CLAUDE.md` and has already been overridden once by a harness-level
+explicit in `house-rules.md` and has already been overridden once by a harness-level
 steer that preferred Bash for edits. The refusal names Edit/Write as the fix.
 Needs an exemption for one-line appends to logs and generated text, which the
 rule itself allows.
@@ -48,7 +48,7 @@ of all: asserting something works without having watched it work. Once per
 session, using the same marker-file pattern as `unpushed.sh`.
 
 **4. `deny-path-scan` — PreToolUse/Bash — `done` (2026-09-08, plugin 1.2.0)**
-`CLAUDE.md` asks the session to read `.claude/settings.json` for `permissions.deny`
+`house-rules.md` asks the session to read `.claude/settings.json` for `permissions.deny`
 entries before every recursive sweep. Nothing ever remembers to. The hook reads
 it and either rewrites the command with the exclusion or refuses with the
 corrected command spelled out.
@@ -111,7 +111,7 @@ the raw startup output revealed it.
 **14. `rule-injection` — UserPromptSubmit — `open`**
 When a prompt matches something like "what changed" / "what's left" / "any open
 items", inject the relevant house rule verbatim. Lets a rule be enforced at the
-moment it applies rather than competing for attention inside a long `CLAUDE.md`.
+moment it applies rather than competing for attention inside a long `house-rules.md`.
 
 **15. `gh-not-webfetch` — PreToolUse/WebFetch — `open`**
 Redirect github.com fetches to `gh api`, per the rule about `raw.githubusercontent.com`

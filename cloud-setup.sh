@@ -15,8 +15,10 @@
 #
 # A setup script runs as root on the session VM before Claude Code launches,
 # which makes it the documented place to put a file in the VM's home directory.
-# This one fetches CLAUDE.md from the config repo and installs it as the user
-# memory file, so a cloud session loads the same rules a local one does.
+# This one fetches house-rules.md from the config repo and installs it as the
+# user memory file (~/.claude/CLAUDE.md), so a cloud session loads the same
+# rules a local one does. Source and destination names differ on purpose: the
+# config repo's own CLAUDE.md is project memory for that repo, not house rules.
 #
 # The hooks and commands arrive separately, as the `house` plugin, either via
 # the account-level plugin sync or the repo's own .claude/settings.json.
@@ -33,7 +35,11 @@ set -u
 # script for real -- against a local server and a temporary home -- rather than
 # only checking that it parses. Neither is ever set in a cloud VM, so the
 # pasted-into-the-web-form behaviour is exactly the defaults.
-RAW="${HOUSE_CLAUDE_MD_URL:-https://raw.githubusercontent.com/cameron-adrian/claude-config/main/CLAUDE.md}"
+# Source is house-rules.md, not CLAUDE.md: in this repo CLAUDE.md is project
+# memory for claude-config itself and would be actively wrong as a cloud VM's
+# user memory. The *destination* is still ~/.claude/CLAUDE.md, because that is
+# the path Claude Code reads user memory from.
+RAW="${HOUSE_CLAUDE_MD_URL:-https://raw.githubusercontent.com/cameron-adrian/claude-config/main/house-rules.md}"
 
 # Claude Code runs as the session user, not as root, so the file has to land in
 # that user's home rather than root's. /home/user is the standard layout; fall

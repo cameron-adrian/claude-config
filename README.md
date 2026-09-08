@@ -7,7 +7,7 @@ This repo is two things at once:
 
 | What | Where | Reaches |
 |---|---|---|
-| **House rules** | `CLAUDE.md` | This machine via symlink; cloud VMs via `cloud-setup.sh` |
+| **House rules** | `house-rules.md` | This machine via symlink; cloud VMs via `cloud-setup.sh` |
 | **The `house` plugin** | `plugins/house/` | Anywhere the plugin is installed or synced |
 | **Harness config** | `settings.json` | This machine via symlink |
 
@@ -75,8 +75,10 @@ in this repo's `settings.json`. A pointer, not a copy, so updating the process
 stays one commit here.
 
 **The rules text in cloud VMs:** paste `cloud-setup.sh` into the Setup script
-field of the cloud environment at claude.ai/code. It fetches `CLAUDE.md` into
-the VM's `~/.claude/`. This requires the repo to be readable without auth.
+field of the cloud environment at claude.ai/code. It fetches `house-rules.md`
+and installs it as the VM's `~/.claude/CLAUDE.md` — source and destination
+filenames deliberately differ, for the reason in "Two CLAUDE.md roles" below.
+This requires the repo to be readable without auth.
 
 Paste it as-is. It reads two environment overrides — `HOUSE_CLAUDE_MD_URL` and
 `HOUSE_TARGET_HOME` — which exist only so the suite can run it for real against
@@ -88,21 +90,53 @@ defaults are the pasted behaviour.
 Claude Code reads `CLAUDE.md` and `settings.json` from `~/.claude/`, so each
 path is a symlink into this repo. Editing either location edits the same file.
 
+**Note the source filename.** `~/.claude/CLAUDE.md` points at `house-rules.md`,
+*not* at this repo's `CLAUDE.md`. See "Two CLAUDE.md roles" below for why —
+pointing it at the wrong one silently replaces your house rules with this
+repo's project notes, in every session, on every project.
+
 ```bash
 # macOS / Linux
-ln -sf ~/claude-config/CLAUDE.md ~/.claude/CLAUDE.md
+ln -sf ~/claude-config/house-rules.md ~/.claude/CLAUDE.md
 ln -sf ~/claude-config/settings.json ~/.claude/settings.json
 
 # Windows (PowerShell, needs admin or Developer Mode)
-New-Item -ItemType SymbolicLink -Path "$HOME\.claude\CLAUDE.md" -Target "$HOME\claude-config\CLAUDE.md" -Force
+New-Item -ItemType SymbolicLink -Path "$HOME\.claude\CLAUDE.md" -Target "$HOME\claude-config\house-rules.md" -Force
 New-Item -ItemType SymbolicLink -Path "$HOME\.claude\settings.json" -Target "$HOME\claude-config\settings.json" -Force
 ```
+
+## Two CLAUDE.md roles
+
+Claude Code loads two memory files: **user memory** at `~/.claude/CLAUDE.md`,
+read in every session on the machine, and **project memory** at a repo's own
+`CLAUDE.md`, read only in that repo.
+
+In every other repo those are plainly different files. Here they collided: the
+house rules sat at this repo's root *and* were symlinked into `~/.claude/`, so
+one file played both roles — loading twice per session in this repo, and
+leaving nowhere to record anything specific to this repo. That last part is the
+real cost. The house rules require every repo to document its own test setup in
+its own `CLAUDE.md`; for this repo that meant writing `bash tests/run-tests.sh`
+into the file that every unrelated project also reads, where it is not merely
+noise but a false instruction.
+
+So the two roles now have two files:
+
+| File | Role | Loaded |
+|---|---|---|
+| `house-rules.md` | User memory, via the `~/.claude/CLAUDE.md` symlink | Every session, every repo, this machine |
+| `CLAUDE.md` | Project memory for `claude-config` | Only in this repo |
+
+Each is loaded exactly once, from one source of truth, and neither repeats the
+other. `CLAUDE.md` opens with a check a session can act on: if it is being read
+outside `claude-config`, the symlink is stale and the machine is running
+without house rules.
 
 ## Keeping it in sync
 
 A symlink keeps two paths on disk identical and does nothing about GitHub.
 
-- **Machine → GitHub:** commit and push after every change. `CLAUDE.md` states
+- **Machine → GitHub:** commit and push after every change. `house-rules.md` states
   this as a standing rule, since git history is the only record of what changed.
 - **GitHub → machine:** a `SessionStart` hook runs `git pull --ff-only` on this
   repo in the background at every session start, so edits made through GitHub's
