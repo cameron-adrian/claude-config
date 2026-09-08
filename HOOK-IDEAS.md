@@ -25,7 +25,7 @@ the session can act on, `#gate-ok` escape hatch where a Bash gate is involved.
 
 ### Tier 1 — existing house rules that need enforcement
 
-**1. `no-script-splicing` — PreToolUse/Bash — `open`**
+**1. `no-script-splicing` — PreToolUse/Bash — `done` (2026-09-08, plugin 1.2.0)**
 Refuse `sed -i`, heredoc redirects into source files, and `python -c`
 string-replace when the target is a code file. The rule against this is already
 explicit in `CLAUDE.md` and has already been overridden once by a harness-level
@@ -33,7 +33,7 @@ steer that preferred Bash for edits. The refusal names Edit/Write as the fix.
 Needs an exemption for one-line appends to logs and generated text, which the
 rule itself allows.
 
-**2. `no-weakened-tests` — PostToolUse on writes — `open`**
+**2. `no-weakened-tests` — PostToolUse on writes — `done` (2026-09-08, plugin 1.2.0)**
 Flag newly-added `.skip` / `.only` / `xfail` / `pytest.mark.skip` / `fdescribe`,
 `continue-on-error: true` in workflows, and `|| true` appended to a test step.
 The one failure mode where a green check actively lies — which matters more here
@@ -41,13 +41,13 @@ than elsewhere, because a green check is the substitute for reading the diff.
 Must be diff-aware: fires only on lines the write introduced, or it screams on
 every touch of a file that legitimately skips something.
 
-**3. `unverified-done` — Stop — `open`**
+**3. `unverified-done` — Stop — `done` (2026-09-08, plugin 1.2.0)**
 If source files changed during the session and no test, build, or lint command
 ever ran, say so before the session ends. Targets the most common Claude failure
 of all: asserting something works without having watched it work. Once per
 session, using the same marker-file pattern as `unpushed.sh`.
 
-**4. `deny-path-scan` — PreToolUse/Bash — `open`**
+**4. `deny-path-scan` — PreToolUse/Bash — `done` (2026-09-08, plugin 1.2.0)**
 `CLAUDE.md` asks the session to read `.claude/settings.json` for `permissions.deny`
 entries before every recursive sweep. Nothing ever remembers to. The hook reads
 it and either rewrites the command with the exclusion or refuses with the
@@ -121,3 +121,21 @@ Redirect github.com fetches to `gh api`, per the rule about `raw.githubuserconte
 
 1, 2, 3, and 4 — every one of them a rule already written and already paid for
 the hard way, and none of them satisfiable by prose.
+
+**Shipped 2026-09-08 in plugin 1.2.0.** Notes worth keeping from building them:
+
+- The splicing gate takes an inline interpreter's body as everything after
+  `-c`/`-e` rather than as a quoted string. A balanced-quote match reads
+  `python3 -c "open(\"a.js\",\"w\")..."` as ending at the first escaped quote
+  and finds nothing — which is a gate that silently stops firing, the worst of
+  the two failure directions.
+- `sys.stdout.write(...)` is how most read-only one-liners in this repo return
+  their answer, so the write detector has to look for a real file write
+  (`open(..., "w")`, `write_text`, `writeFileSync`) rather than any `.write(`.
+- `|| true` is a red flag on a CI step and completely ordinary in test fixture
+  cleanup, so the weakened-check patterns are scoped: workflow files get the
+  CI-shaped ones, test files do not.
+- `unverified-done` fails open toward silence on purpose. If the transcript
+  format changes and no tool calls can be found, it says nothing — the opposite
+  choice would nag at the end of every session and get the hook switched off,
+  taking the real catch with it.
