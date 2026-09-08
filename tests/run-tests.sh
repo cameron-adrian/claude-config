@@ -618,13 +618,39 @@ else
   printf '  skip curl not installed; cloud-setup behaviour not exercised here\n'
 fi
 
-# The default URL must keep pointing at this repo's CLAUDE.md on the default
-# branch. A rename or a branch change here fails silently in the one place
-# nobody would look: every future cloud session, quietly rule-less.
-case $(grep -c 'raw.githubusercontent.com/cameron-adrian/claude-config/main/CLAUDE.md' "$ROOT/cloud-setup.sh") in
-  0) fail "cloud-setup: default URL points at this repo's CLAUDE.md" "not found";;
-  *) pass "cloud-setup: default URL points at this repo's CLAUDE.md";;
+# The default URL must keep pointing at the house rules on the default branch.
+# A rename or a branch change here fails silently in the one place nobody would
+# look: every future cloud session, quietly rule-less.
+#
+# It must be house-rules.md specifically. CLAUDE.md in this repo is project
+# memory for claude-config itself -- fetching that into a cloud VM would install
+# this repo's git quirks and test command as the user memory for every unrelated
+# project, which is worse than installing nothing.
+case $(grep -c 'raw.githubusercontent.com/cameron-adrian/claude-config/main/house-rules.md' "$ROOT/cloud-setup.sh") in
+  0) fail "cloud-setup: default URL points at house-rules.md" "not found";;
+  *) pass "cloud-setup: default URL points at house-rules.md";;
 esac
+
+if grep -q 'raw.githubusercontent.com/cameron-adrian/claude-config/main/CLAUDE.md' "$ROOT/cloud-setup.sh"; then
+  fail "cloud-setup: does not fetch this repo's project memory" "it points at CLAUDE.md"
+else
+  pass "cloud-setup: does not fetch this repo's project memory"
+fi
+
+# The two files must stay distinct. If a future edit collapses them back into
+# one -- or leaves CLAUDE.md holding the rules text -- the split silently undoes
+# itself and every repo gets claude-config's project notes again.
+if [ -f "$ROOT/house-rules.md" ]; then
+  pass "house-rules.md exists (the file the symlink and cloud-setup point at)"
+else
+  fail "house-rules.md exists" "missing"
+fi
+
+if [ -f "$ROOT/CLAUDE.md" ] && ! cmp -s "$ROOT/CLAUDE.md" "$ROOT/house-rules.md"; then
+  pass "CLAUDE.md and house-rules.md are distinct files"
+else
+  fail "CLAUDE.md and house-rules.md are distinct files" "they are identical or one is missing"
+fi
 
 printf '\n== no-script-splicing ==\n'
 
