@@ -9,7 +9,7 @@
     {
       "name": "house",
       "source": "./plugins/house",
-      "description": "House dev process: syntax gate on every write, git and merge gates, session orientation, and the ship/since/repo-doctor commands."
+      "description": "House dev process: syntax gate on every write, git and merge gates, owner-scoped auto-approval of the git write flow, session orientation, the ship/since/repo-doctor commands, and an isolated Playwright browser."
     }
   ]
 }

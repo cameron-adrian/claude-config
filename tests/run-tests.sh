@@ -92,6 +92,49 @@ case "$mcp_args" in
   *) fail "playwright mcp: --isolated is set" "args were: $mcp_args";;
 esac
 
+# The marketplace entry and the plugin manifest describe the same plugin in two
+# files. The marketplace copy is the one shown at install time, so when they
+# drift it is the *stale* text that users read while the accurate one sits in a
+# file nobody opens -- which is how owner-allow and the Playwright server ended
+# up missing from the listing for two releases. Nothing but a check keeps two
+# hand-maintained copies in step.
+"$PY_BIN" - "$ROOT/.claude-plugin/marketplace.json" \
+           "$ROOT/plugins/house/.claude-plugin/plugin.json" \
+           >"$TMP/desc-sync" 2>"$TMP/e" <<'PY'
+import json, sys
+mkt = json.load(open(sys.argv[1]))
+plg = json.load(open(sys.argv[2]))
+entry = next((p for p in mkt["plugins"] if p["name"] == plg["name"]), None)
+if entry is None:
+    print("MISSING")
+else:
+    print("SAME" if entry.get("description") == plg.get("description") else "DRIFT")
+    print(entry.get("description", ""))
+    print(plg.get("description", ""))
+PY
+sync_state=$(head -1 "$TMP/desc-sync" 2>/dev/null | tr -d '\r')
+case "$sync_state" in
+  SAME) pass "marketplace entry and plugin manifest describe the plugin identically";;
+  DRIFT) fail "marketplace entry and plugin manifest describe the plugin identically" \
+              "marketplace: $(sed -n 2p "$TMP/desc-sync")
+     manifest:    $(sed -n 3p "$TMP/desc-sync")";;
+  *) fail "marketplace entry and plugin manifest describe the plugin identically" \
+          "no marketplace entry matches the manifest's name ($(cat "$TMP/e"))";;
+esac
+
+# The marketplace's source path has to resolve, or `/plugin install` fails
+# against a listing that looks perfectly well-formed.
+mkt_src=$("$PY_BIN" -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(d["plugins"][0]["source"])
+' "$ROOT/.claude-plugin/marketplace.json" 2>/dev/null | tr -d '\r')
+if [ -n "$mkt_src" ] && [ -d "$ROOT/$mkt_src" ]; then
+  pass "marketplace source path resolves: $mkt_src"
+else
+  fail "marketplace source path resolves" "got: ${mkt_src:-<none>}"
+fi
+
 # Every hook the manifest wires up must actually exist. A renamed script with a
 # stale manifest entry is the classic way a gate silently stops running.
 "$PY_BIN" - "$ROOT/plugins/house/hooks/hooks.json" >"$TMP/manifest-scripts" <<'PY'
@@ -452,6 +495,136 @@ case "$out" in *"uncommitted"*) pass "reports uncommitted work";; *) fail "repor
 
 out=$( cd "$TMP" && printf '{}' | bash "$SCRIPTS/orient.sh" 2>/dev/null )
 expect_empty "$out" "says nothing outside a git repo"
+
+printf '\n== cloud-setup ==\n'
+
+# Until now this script was only parse-checked, and it is the sole path by
+# which the rules text reaches a cloud VM. The two things that actually matter
+# about it are behavioural: it must put the file where Claude Code will read
+# it, and it must exit 0 even when the fetch fails, because a setup script that
+# exits non-zero stops the session from starting at all. A broken fetch costing
+# a session its house rules is a bad day; a broken fetch costing the session
+# entirely is a worse one, and only a run can tell them apart.
+#
+# Served over a real local HTTP server rather than stubbing curl, so the actual
+# curl invocation -- flags, timeout, -o target -- is what gets exercised.
+if command -v curl >/dev/null 2>&1; then
+  SRVDIR="$TMP/srv"
+  mkdir -p "$SRVDIR"
+  printf '# house rules fixture\nrule one\n' >"$SRVDIR/CLAUDE.md"
+
+  # Port 0 lets the OS pick a free one, so concurrent runs cannot collide.
+  "$PY_BIN" - "$SRVDIR" "$TMP/port" >/dev/null 2>&1 <<'PY' &
+import sys, os
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+os.chdir(sys.argv[1])
+srv = ThreadingHTTPServer(("127.0.0.1", 0), SimpleHTTPRequestHandler)
+with open(sys.argv[2], "w") as fh:
+    fh.write(str(srv.server_address[1]))
+srv.serve_forever()
+PY
+  SRV_PID=$!
+  # Cleanup even if an assertion below bails out early.
+  trap 'kill "$SRV_PID" 2>/dev/null; rm -rf "$TMP" 2>/dev/null || true' EXIT
+
+  PORT=""
+  i=0
+  while [ "$i" -lt 50 ]; do
+    if [ -s "$TMP/port" ]; then PORT=$(tr -d '\r\n' <"$TMP/port"); break; fi
+    i=$((i + 1))
+    sleep 0.1
+  done
+
+  if [ -z "$PORT" ]; then
+    fail "cloud-setup: local fixture server starts" "no port after 5s"
+  else
+    pass "cloud-setup: local fixture server starts"
+
+    # The success path: the file lands where Claude Code looks for it.
+    CHOME="$TMP/cloudhome"
+    mkdir -p "$CHOME"
+    rc=$(
+      HOUSE_TARGET_HOME="$CHOME" \
+      HOUSE_CLAUDE_MD_URL="http://127.0.0.1:$PORT/CLAUDE.md" \
+        bash "$ROOT/cloud-setup.sh" >/dev/null 2>&1
+      echo $?
+    )
+    expect_eq "0" "$rc" "cloud-setup: exits 0 on a successful fetch"
+
+    if [ -f "$CHOME/.claude/CLAUDE.md" ]; then
+      pass "cloud-setup: writes CLAUDE.md into ~/.claude/"
+    else
+      fail "cloud-setup: writes CLAUDE.md into ~/.claude/" "no file at $CHOME/.claude/CLAUDE.md"
+    fi
+
+    got=$(cat "$CHOME/.claude/CLAUDE.md" 2>/dev/null)
+    case "$got" in
+      *"house rules fixture"*) pass "cloud-setup: the fetched content is what landed";;
+      *) fail "cloud-setup: the fetched content is what landed" "got: $got";;
+    esac
+
+    # The failure path, and the one that actually breaks a session if wrong.
+    # Same server, a path it will 404 on: curl -f must not become a non-zero
+    # exit from the setup script.
+    FHOME="$TMP/failhome"
+    mkdir -p "$FHOME"
+    rc=$(
+      HOUSE_TARGET_HOME="$FHOME" \
+      HOUSE_CLAUDE_MD_URL="http://127.0.0.1:$PORT/nope-404.md" \
+        bash "$ROOT/cloud-setup.sh" >/dev/null 2>&1
+      echo $?
+    )
+    expect_eq "0" "$rc" "cloud-setup: a 404 still exits 0 so the session starts"
+
+    if [ -f "$FHOME/.claude/CLAUDE.md" ]; then
+      fail "cloud-setup: a failed fetch leaves no truncated file" "one was written"
+    else
+      pass "cloud-setup: a failed fetch leaves no truncated file"
+    fi
+
+    # An unroutable address rather than an HTTP error, i.e. no network at all.
+    NHOME="$TMP/nethome"
+    mkdir -p "$NHOME"
+    rc=$(
+      HOUSE_TARGET_HOME="$NHOME" \
+      HOUSE_CLAUDE_MD_URL="http://127.0.0.1:1/CLAUDE.md" \
+        bash "$ROOT/cloud-setup.sh" >/dev/null 2>&1
+      echo $?
+    )
+    expect_eq "0" "$rc" "cloud-setup: an unreachable host still exits 0"
+
+    # The fallback: when the target home does not exist, it must not silently
+    # write into a directory that isn't there -- it falls back to $HOME.
+    FBHOME="$TMP/fallback-home"
+    mkdir -p "$FBHOME"
+    rc=$(
+      HOME="$FBHOME" \
+      HOUSE_TARGET_HOME="$TMP/definitely-not-a-directory" \
+      HOUSE_CLAUDE_MD_URL="http://127.0.0.1:$PORT/CLAUDE.md" \
+        bash "$ROOT/cloud-setup.sh" >/dev/null 2>&1
+      echo $?
+    )
+    expect_eq "0" "$rc" "cloud-setup: falls back cleanly when the target home is absent"
+    if [ -f "$FBHOME/.claude/CLAUDE.md" ]; then
+      pass "cloud-setup: the fallback writes into \$HOME"
+    else
+      fail "cloud-setup: the fallback writes into \$HOME" "nothing at $FBHOME/.claude/CLAUDE.md"
+    fi
+  fi
+
+  kill "$SRV_PID" 2>/dev/null
+  trap 'rm -rf "$TMP" 2>/dev/null || true' EXIT
+else
+  printf '  skip curl not installed; cloud-setup behaviour not exercised here\n'
+fi
+
+# The default URL must keep pointing at this repo's CLAUDE.md on the default
+# branch. A rename or a branch change here fails silently in the one place
+# nobody would look: every future cloud session, quietly rule-less.
+case $(grep -c 'raw.githubusercontent.com/cameron-adrian/claude-config/main/CLAUDE.md' "$ROOT/cloud-setup.sh") in
+  0) fail "cloud-setup: default URL points at this repo's CLAUDE.md" "not found";;
+  *) pass "cloud-setup: default URL points at this repo's CLAUDE.md";;
+esac
 
 printf '\n== version-bump gate ==\n'
 

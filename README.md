@@ -74,6 +74,11 @@ stays one commit here.
 field of the cloud environment at claude.ai/code. It fetches `CLAUDE.md` into
 the VM's `~/.claude/`. This requires the repo to be readable without auth.
 
+Paste it as-is. It reads two environment overrides — `HOUSE_CLAUDE_MD_URL` and
+`HOUSE_TARGET_HOME` — which exist only so the suite can run it for real against
+a local server and a temporary home. Neither is ever set in a cloud VM, so the
+defaults are the pasted behaviour.
+
 ## The symlinks
 
 Claude Code reads `CLAUDE.md` and `settings.json` from `~/.claude/`, so each

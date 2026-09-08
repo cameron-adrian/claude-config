@@ -29,12 +29,16 @@
 
 set -u
 
-RAW="https://raw.githubusercontent.com/cameron-adrian/claude-config/main/CLAUDE.md"
+# The two environment overrides below exist so the test suite can exercise this
+# script for real -- against a local server and a temporary home -- rather than
+# only checking that it parses. Neither is ever set in a cloud VM, so the
+# pasted-into-the-web-form behaviour is exactly the defaults.
+RAW="${HOUSE_CLAUDE_MD_URL:-https://raw.githubusercontent.com/cameron-adrian/claude-config/main/CLAUDE.md}"
 
 # Claude Code runs as the session user, not as root, so the file has to land in
 # that user's home rather than root's. /home/user is the standard layout; fall
 # back to $HOME if it ever is not.
-TARGET_HOME="/home/user"
+TARGET_HOME="${HOUSE_TARGET_HOME:-/home/user}"
 [ -d "$TARGET_HOME" ] || TARGET_HOME="$HOME"
 
 mkdir -p "$TARGET_HOME/.claude" || true
