@@ -17,7 +17,8 @@
   "enableWorkflows": true,
   "permissions": {
     "allow": [
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(git branch:*)"
     ]
   },
   "enabledPlugins": {
@@ -28,7 +29,8 @@
       "source": {
         "source": "github",
         "repo": "cameron-adrian/claude-config"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "autoCompactWindow": 500000,
