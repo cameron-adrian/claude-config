@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(git branch:*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -15,14 +21,9 @@
     ]
   },
   "enableWorkflows": true,
-  "permissions": {
-    "allow": [
-      "Bash(git fetch *)",
-      "Bash(git branch:*)"
-    ]
-  },
   "enabledPlugins": {
-    "house@cameron-house": true
+    "house@cameron-house": true,
+    "i-have-adhd@i-have-adhd": true
   },
   "extraKnownMarketplaces": {
     "cameron-house": {
@@ -31,6 +32,17 @@
         "repo": "cameron-adrian/claude-config"
       },
       "autoUpdate": true
+    },
+    "i-have-adhd": {
+      "source": {
+        "source": "github",
+        "repo": "ayghri/i-have-adhd"
+      }
+    }
+  },
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "medium"
     }
   },
   "autoCompactWindow": 500000,
@@ -38,10 +50,5 @@
   "tui": "fullscreen",
   "theme": "auto",
   "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true,
-  "modelSettings": {
-    "claude-opus-5": {
-      "effortLevel": "medium"
-    }
-  }
+  "agentPushNotifEnabled": true
 }
