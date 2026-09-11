@@ -18,6 +18,15 @@ functional.
 No prose, no preamble. Numbered steps, exact commands to run, and anything
 else that's actually blocking you from continuing hands-free.
 
+## Scope on ambiguous requests
+
+When a request references an unenumerated set or collection — "fix both",
+"build both", "merge", "fix the review findings", "handle the errors" — list
+every candidate item you can find (with source/file/age) and get explicit
+confirmation on which ones are in scope before editing anything. Default to
+treating ALL open/matching items as in scope unless told otherwise, not just
+the most recent ones.
+
 ## Committing changes
 
 I don't write code myself, so git history is the only record of what changed

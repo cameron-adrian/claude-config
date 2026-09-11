@@ -1,7 +1,7 @@
 {
   "name": "house",
   "description": "House dev process: syntax gate on every write, git and merge gates, a block on shell-spliced code edits, a report when a test or CI check is weakened, deny-path scoping for recursive sweeps, owner-scoped auto-approval of the git write flow, session orientation, an end-of-session check that something was actually run, the ship/since/repo-doctor commands, and an isolated Playwright browser.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": {
     "name": "Cameron Adrian"
   },
