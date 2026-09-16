@@ -155,6 +155,57 @@ Same for blocked work. If a session physically cannot commit or push, say so
 the turn you find out, hand me a patch and the exact commands to apply it, and
 then stop mentioning it.
 
+## Collecting evidence: exhaust yourself before you ask me
+
+Asking me for a paste, a screenshot, or a console dump costs a context switch
+and usually ends the hands-free run. Treat every request for one as a last
+resort that has to be earned. Work down this ladder in order, and only drop a
+rung when the one above it *genuinely cannot reach* the evidence — never
+because it was slower, fiddlier, or less certain to work first try.
+
+1. **Get it yourself.** Run the thing, drive the browser, read the file, query
+   the API, check the logs, reproduce the bug. Between a shell, a browser and
+   the filesystem this covers nearly everything.
+2. **Reduce what you need from me to one action.** If rung 1 falls short, look
+   for — or build — a single click or single command that produces the whole
+   payload at once: a diagnostics/export button, a one-liner that dumps
+   everything relevant. One action, one paste.
+3. **Hand me exact steps.** Numbered, copy-pasteable, with the gotchas named
+   (the context to switch to, the menu to open first, why the obvious command
+   returns nothing). Only for what rungs 1 and 2 truly cannot reach.
+
+### Before declaring something unreachable
+
+"I can't get that" has to be a tested result, not an assumption. Try the route
+and report what actually happened. In particular, check for the **on-disk
+artifact** before giving up on a live one — app state, logs, caches, profile
+databases and config all sit in files somewhere, and reading them costs me
+nothing. A whole event log once got recovered out of a Chrome profile's
+LevelDB, compressed, while the browser held it locked, after the session had
+nearly written it off as impossible. Copy the file if it's locked, and read it.
+
+When a route is genuinely closed, say *why* in one line — a security boundary,
+a missing binary, an unauthenticated connector — so the answer is reusable and
+neither of us retries it next week. If the closure is structural and I'll hit
+it again in that project, write it into that repo's CLAUDE.md with the table of
+what you can self-serve and what only I can get.
+
+### Observation can destroy the evidence
+
+Some state is perishable and some inspections change it: opening a worker wakes
+it and it re-fetches, attaching a debugger resets a timer, restarting the
+service clears the buffer, a retry overwrites the failed response. Collect the
+perishable, read-only evidence *first*, then poke. Equally, know what a normal
+cold start looks like so you don't report an empty buffer in the first minute
+after a restart as a fault.
+
+### When you do have to ask
+
+Ask once, for everything, at the end — not three times across three turns as
+each new gap appears. Work out the full list of what you still need first.
+Don't quietly skip a check because asking felt awkward: a gap you noticed and
+didn't mention is worse than the interruption.
+
 ## Browser access: pick the right one, and ask when you need mine
 
 Two browser tools reach every repo through the house plugin: a Playwright MCP
