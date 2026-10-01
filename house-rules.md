@@ -176,6 +176,32 @@ Claude-in-Chrome isn't connected in that session, say so plainly rather than
 skipping the verification quietly — same standard as the rule above for a
 session with no browser at all.
 
+## Installing on macOS (browser extensions and anything like them)
+
+Do every install the way `zendesk-enhancer/scripts/install-macos.sh` (with its
+`chrome.js` helper and `release-zendesk` skill) does it. When a repo lacks that
+setup, copy the pattern in rather than improvising an install by hand:
+
+- **Update one stable folder in place. Never "remove, then Load unpacked from a
+  new folder".** A new folder mints a new extension id, and the id is what the
+  extension's saved storage is keyed to — so a fresh load silently wipes my
+  settings and data. Same folder, same id, data intact.
+- **The target is the folder Chrome already loads**, found by reading the
+  extension's record in Chrome's profile preferences — not a guess and not a
+  new default. `~/Extensions/<name>` is only for a first-ever install.
+- The source is a version-named zip in `~/Downloads`
+  (`gh api repos/<owner>/<repo>/zipball/main > ~/Downloads/<repo>-<version>.zip`),
+  taken from `main` after the bump merges, and verified with `unzip -t` plus
+  the version read from the manifest inside it.
+- Copy with `rsync -a --checksum --delete`, shipped files only. Refuse a
+  downgrade unless forced. Re-read the installed manifest afterwards and fail
+  if it doesn't show the version just installed.
+- Finish by opening `chrome://extensions` and telling me to click the reload
+  arrow on the extension's card — nothing can click it for me, and nothing is
+  lost by clicking it later.
+- Never edit Chrome's preference files: they are signed, and Chrome treats an
+  edit as tampering.
+
 ## Recursive scans and deny-protected paths
 
 Before running a broad recursive read in a repo — `grep -r`, `find`, a
