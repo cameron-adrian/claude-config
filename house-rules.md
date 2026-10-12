@@ -219,3 +219,21 @@ approval no matter how routine the sweep is, which turns an unrelated check
 (conflict markers, a repo-wide search) into an interruption for no reason.
 Scoping the sweep around the path keeps the protection intact without the
 friction.
+
+## Access order: CLI/API, then connector, then browser
+
+Reach any external system in this order and stop at the first route that works:
+
+1. **CLI or API, called from bash.** A script runs it and filters the output
+   (count, `jq`, `head`, `LIMIT`) so only a small result reaches the
+   conversation. No tool schemas, no raw dumps.
+2. **MCP connector.** Works with no setup, but every result row lands in context
+   in full, so aggregate and `LIMIT` in the request itself.
+3. **Browser.** Scripted first (Playwright returning trimmed text or JSON);
+   interactive browsing, screenshots and clicking last. Claude-in-Chrome only for
+   real logins that cannot be scripted, or when I want to watch.
+
+Say which route you used and why a cheaper one was skipped. When a cheaper route
+turns out to work, update the skill or script so the next run starts there.
+Writes (post, assign, send, impersonate) need my OK on every route. Any skill
+that mentions a browser carries an "Access order" section saying this.
