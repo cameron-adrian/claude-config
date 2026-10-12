@@ -2,6 +2,29 @@
 
 Applies across all projects, not just whichever one you're currently in.
 
+## Which rules apply: personal projects vs local-only work
+
+My personal projects live on GitHub. My work tooling never goes to GitHub or
+any other remote. Tell which kind of repo you're in from where you are, not by
+asking me each time:
+
+- **Local-only (work):** a repo with no GitHub remote, or whose own `CLAUDE.md`
+  says it is local-only or that you must not push. In it the push, pull
+  request, CI-workflow, merge and `gh` rules below do not apply: commit
+  locally, never push, never open a PR, never add a CI workflow. Tests still
+  apply — write them and run them locally. That repo's own `CLAUDE.md` wins over
+  this file on anything it covers.
+- **Personal:** a repo with a GitHub remote and no local-only note. Everything
+  below applies.
+- **Can't tell** (no remote yet and no note): ask once, then write the answer
+  into the repo's `CLAUDE.md` so the next session doesn't have to ask.
+- Never put work material into a GitHub repo — not in code, a commit message,
+  a PR, an issue, or this repo's own rules, which are public.
+
+Anything I want "everywhere" — a plugin, a setting, a rule — has to reach both
+Claude config dirs on this Mac (`~/.claude` and `~/.claude-personal`), not just
+the one a session happens to be running under.
+
 ## Explaining code and changes
 
 Reference actual code as little as possible — no inline snippets, script
@@ -29,15 +52,18 @@ from the actual diff, not from what the task was supposed to be — check
 make, and don't sweep those into the same commit; commit them separately, or
 ask if their intent isn't clear. Skip this only where a project's own
 permissions block git actions outright (e.g. a restricted appliance session).
+In a local-only work repo, commit after every change but never push.
 
 ## Testing and CI
 
 I don't read the code, so a green check is my only real substitute for
 reviewing a diff — which means a repo without tests gives me nothing to
-merge on. Every repo should have tests and a CI workflow that runs them on
-every pull request. When you're working in one that doesn't, set that up as
-its own pull request rather than asking me whether to; treat it as part of
-making the repo workable, not as a feature I have to request.
+merge on. Every repo should have tests, and every personal (GitHub) repo a CI
+workflow that runs them on every pull request. When you're working in one that
+doesn't, set that up as its own pull request rather than asking me whether to;
+treat it as part of making the repo workable, not as a feature I have to
+request. A local-only work repo gets the tests but no CI workflow and no PR:
+run them locally before each commit.
 
 What the tests should be is repo-specific and yours to choose — use whatever
 is idiomatic for the stack rather than forcing a house framework onto
@@ -55,7 +81,7 @@ you haven't actually watched pass.
 
 ## Merging pull requests
 
-Once CI is green on a PR that isn't marked draft, merge it — don't wait for an
+In a personal (GitHub) repo, once CI is green on a PR that isn't marked draft, merge it — don't wait for an
 explicit "merge this" each time. Draft is the actual gate: mark a PR draft (and
 say why in the body) whenever it needs your review, a live test I can't run
 myself, or depends on something happening outside git that I can't verify —
@@ -178,9 +204,9 @@ session with no browser at all.
 
 ## Installing on macOS (browser extensions and anything like them)
 
-Do every install the way `zendesk-enhancer/scripts/install-macos.sh` (with its
-`chrome.js` helper and `release-zendesk` skill) does it. When a repo lacks that
-setup, copy the pattern in rather than improvising an install by hand:
+Do every install the way a repo's own `scripts/install-macos.sh` (with its
+`chrome.js` helper) does it. When a repo lacks that setup, copy the pattern in
+from another of my extension repos rather than improvising an install by hand:
 
 - **Update one stable folder in place. Never "remove, then Load unpacked from a
   new folder".** A new folder mints a new extension id, and the id is what the
@@ -189,13 +215,17 @@ setup, copy the pattern in rather than improvising an install by hand:
 - **The target is the folder Chrome already loads**, found by reading the
   extension's record in Chrome's profile preferences — not a guess and not a
   new default. `~/Extensions/<name>` is only for a first-ever install.
-- The source is a version-named zip in `~/Downloads`
-  (`gh api repos/<owner>/<repo>/zipball/main > ~/Downloads/<repo>-<version>.zip`),
-  taken from `main` after the bump merges, and verified with `unzip -t` plus
-  the version read from the manifest inside it.
+- The source is the local checkout, never a download: the working tree by
+  default, so a change under test needs no merge, no zip and no version bump,
+  and the committed `HEAD` (`git archive`) for a release. Run it from a
+  `post-commit` hook so every commit lands in Chrome on its own — never ask me
+  to run the installer. A version-named zip in `~/Downloads` is only for a
+  personal repo that ships that way, verified with `unzip -t` plus the version
+  read from the manifest inside it.
 - Copy with `rsync -a --checksum --delete`, shipped files only. Refuse a
   downgrade unless forced. Re-read the installed manifest afterwards and fail
-  if it doesn't show the version just installed.
+  if it doesn't show the version just installed. Only nudge me to reload when
+  a file actually changed.
 - Finish by opening `chrome://extensions` and telling me to click the reload
   arrow on the extension's card — nothing can click it for me, and nothing is
   lost by clicking it later.

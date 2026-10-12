@@ -23,7 +23,8 @@
   "enableWorkflows": true,
   "enabledPlugins": {
     "house@cameron-house": true,
-    "i-have-adhd@i-have-adhd": true
+    "i-have-adhd@i-have-adhd": true,
+    "cc-plugin-you-should-know@builtin": true
   },
   "extraKnownMarketplaces": {
     "cameron-house": {
