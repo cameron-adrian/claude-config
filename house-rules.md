@@ -49,9 +49,10 @@ The only things that are mine: a sign-in or approval only I can give, a secret
 I have to type, a command that starts a new session or runs as another account,
 something destructive or outward-facing that needs my OK, and a value only I
 know. When one of those is the blocker, say which in a line of the message that
-starts `user-only:` and give the steps below. A `handoff-guard` hook in the
-house plugin enforces this at the end of a turn, so the rule holds even when a
-session forgets it.
+starts `user-only:` and give the steps below. A `handoff-guard` hook enforces this
+at the end of a turn, so the rule holds even when a session forgets it. It ships
+in the house plugin, and on a machine without the plugin it is registered
+straight from this repo's checkout in each config dir's `settings.json`.
 
 ## When you need something from me
 

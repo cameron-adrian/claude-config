@@ -903,6 +903,15 @@ expect_eq "0" "$(handoff 'Run `cd ~/x && claude -p hi`.')" "a child session insi
 expect_eq "0" "$(handoff 'Run `echo fallback: datadog`.')" "an approval phrase inside a command is the user's"
 expect_eq "0" "$(handoff 'Run `cd ~/x && rm -rf build`.')" "a recursive delete inside a chain is the user's call"
 
+# Those words inside a path or a range are not the user's: still a hand-off.
+expect_eq "2" "$(handoff 'Run `/usr/bin/python3 ~/claude-skills/scripts/x.py +15551234567`.')" \
+  "a path containing claude is not a new session"
+expect_eq "2" "$(handoff 'Run `cat ~/.claude/settings.json`.')" "a ~/.claude path is not a new session"
+expect_eq "2" "$(handoff 'Run `ls ~/.ssh`.')" "a ~/.ssh path is not an ssh login"
+expect_eq "2" "$(handoff 'Run `git log origin/main...HEAD`.')" "a git range is not a placeholder"
+expect_eq "0" "$(handoff 'Run `python3 x.py ...` with the ids.')" "a stand-alone ... is still a placeholder"
+expect_eq "0" "$(handoff 'Run `ssh build-box uptime`.')" "ssh as the command is still the user's"
+
 # The escape hatch: a stated reason passes, even with a runnable command in it.
 expect_eq "0" "$(handoff 'user-only: needs the work account. Run `python3 check.py` there.')" "a user-only reason passes"
 expect_eq "2" "$(handoff 'Run `python3 check.py`. user-only:')" "the hatch needs a reason after it"
@@ -933,6 +942,12 @@ expect_eq "0" "$rc" "an earlier hand-off does not count once the last message is
 rc=$( printf '{"session_id":"h4","transcript_path":"%s"}' "$TMP/t-hand-bad.jsonl" \
         | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>&1; echo $? )
 expect_eq "2" "$rc" "the transcript fallback finds a hand-off in the last message"
+{ am 'All done.'
+  printf '{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"text","text":%s}]}}\n' \
+    "$(json_str 'Run `python3 check.py` and report back.')"; } >"$TMP/t-hand-side.jsonl"
+rc=$( printf '{"session_id":"h5","transcript_path":"%s"}' "$TMP/t-hand-side.jsonl" \
+        | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "a subagent's message is not the session's last word"
 }
 
 printf '\n== deny-path-scan ==\n'
