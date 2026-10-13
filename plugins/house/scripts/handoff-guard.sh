@@ -52,6 +52,8 @@ if not text.strip() and path and os.path.isfile(path):
                     continue
                 if not isinstance(d, dict) or d.get("type") != "assistant":
                     continue
+                if d.get("isSidechain"):
+                    continue      # a subagent talking to the session, not to the user
                 content = (d.get("message") or {}).get("content")
                 if isinstance(content, str):
                     parts = [content]
@@ -79,11 +81,14 @@ CONTEXT = re.compile(r"\b(?:run|paste|type|execute|enter|try)\b", re.I)
 # whole line, so one such part in a chain of commands clears the lot.
 USER_ONLY = re.compile(r"""
     --login\b | \blogin-[\w-]+ | \bsudo\b | add-generic-password | \bread\s+-s\b
-  | \bgcloud\s+auth\b | \bgh\s+auth\b | \bssh\b | \bpasswd\b | fallback: | \bclaude\b
+  | \bgcloud\s+auth\b | \bgh\s+auth\b | \bpasswd\b | fallback:
+  | (?<![\w./~-])(?:ssh|claude)(?![\w./-])
   | \b(?:npm|docker|aws|az)\s+login\b
   | \brm\s+-\w*r | --force\b | \bpush\s+-f\b | reset\s+--hard | \bdrop\s+(?:table|database)\b
-  | <[^<>\n]{1,60}> | \.\.\.
+  | <[^<>\n]{1,60}> | (?<!\S)\.\.\.(?!\S)
 """, re.I | re.X)
+# ssh and claude count only as a command word, never inside a path such as
+# ~/.ssh or ~/claude-skills; "..." only as a stand-alone "fill this in", not a..b.
 
 RUNNABLE = re.compile(r"""^(?:
     (?:\S*/)?(?:python3?|bash|sh|zsh|node|npx?|pytest|git|gh|ls|cat|grep|rg|find|curl|jq|bq|gcloud|
