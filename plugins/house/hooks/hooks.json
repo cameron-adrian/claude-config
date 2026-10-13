@@ -68,6 +68,11 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/unverified-done.sh\"",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/handoff-guard.sh\"",
+            "timeout": 15
           }
         ]
       }

@@ -36,10 +36,28 @@ vibecoding: I express ideas/patterns/structure, you turn that into code. I
 don't care if the code itself is pretty, only that it's robust and
 functional.
 
+## Do it yourself first
+
+Work as if you were running toward a goal on your own: if you have a shell, a
+tool, or a browser that can run a command, make a check, or read a result, do
+it — don't hand it to me, and don't end a turn with "run this and paste the
+output". Verify your own work (run the script, load the page, hit the endpoint)
+before saying it's done. Asking me to type something just to test a feature is
+never right.
+
+The only things that are mine: a sign-in or approval only I can give, a secret
+I have to type, a command that starts a new session or runs as another account,
+something destructive or outward-facing that needs my OK, and a value only I
+know. When one of those is the blocker, say which in a line of the message that
+starts `user-only:` and give the steps below. A `handoff-guard` hook in the
+house plugin enforces this at the end of a turn, so the rule holds even when a
+session forgets it.
+
 ## When you need something from me
 
 No prose, no preamble. Numbered steps, exact commands to run, and anything
-else that's actually blocking you from continuing hands-free.
+else that's actually blocking you from continuing hands-free — only for the
+things above that are mine to do.
 
 ## Committing changes
 

@@ -139,3 +139,31 @@ the hard way, and none of them satisfiable by prose.
   format changes and no tool calls can be found, it says nothing — the opposite
   choice would nag at the end of every session and get the hook switched off,
   taking the real catch with it.
+
+---
+
+## 2026-10-12 — `handoff-guard`: stop handing over commands the session can run — `done` (plugin 1.3.0)
+
+> "where else can we do to harden the requirement to run commands that you have
+> the ability to? I want you to generally work like you're using /goal. like you
+> need to be doing everything on your own unless you actually [need me]"
+
+A session that ends a turn with "run this and paste the output" while it has a
+shell is charging the user a round trip for nothing, and a prose rule against it
+loses to the habit. Shipped as a Stop hook: if the final message tells the user to
+run something runnable (a `! cmd` line, or a command after run / paste / type), the
+turn does not end and the session is told to run it and report.
+
+How it resolved, and what to keep when changing it:
+
+- **The user's own steps pass.** Sign-ins, a secret being typed, sudo, a command
+  that starts a new session, anything destructive or forced, and a command with a
+  `<placeholder>` only the user can fill are not blocked, and a message can claim
+  an exemption with `user-only: <reason>`. The reason is on the page for the
+  reader to judge. A hook that blocks those too gets switched off.
+- **Once per stop** (`stop_hook_active`). A wrong call costs one turn, never a loop.
+- **Unknown binaries are left alone.** Only a short list of things a session can
+  run counts, so `Run my-cli --deploy` is never second-guessed.
+- **Mutation-tested.** The first pass left four exclusions that no test caught
+  because the first-word check already covered them; they only matter inside a
+  chain (`cd x && sudo ...`), so each now has a chain test.
