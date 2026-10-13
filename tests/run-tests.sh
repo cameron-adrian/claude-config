@@ -861,6 +861,10 @@ printf '\n== handoff-guard ==\n'
 
 # The final message arrives in the payload (newer Claude Code) or has to be read
 # from the transcript (older). Most cases use the payload; two cover the fallback.
+# shellcheck disable=SC2016
+# Every message below is text for the hook to read, with literal backticks and $
+# that this shell must not expand. The group is only here so one directive covers it.
+{
 handoff() {  # $1 = final message  $2 = extra payload fields, e.g. ,"stop_hook_active":true
   printf '{"session_id":"h1","last_assistant_message":%s%s}' "$(json_str "$1")" "${2:-}" \
     | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>"$TMP/stderr"
@@ -929,6 +933,7 @@ expect_eq "0" "$rc" "an earlier hand-off does not count once the last message is
 rc=$( printf '{"session_id":"h4","transcript_path":"%s"}' "$TMP/t-hand-bad.jsonl" \
         | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>&1; echo $? )
 expect_eq "2" "$rc" "the transcript fallback finds a hand-off in the last message"
+}
 
 printf '\n== deny-path-scan ==\n'
 
