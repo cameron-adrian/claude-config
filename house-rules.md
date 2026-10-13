@@ -51,8 +51,9 @@ something destructive or outward-facing that needs my OK, and a value only I
 know. When one of those is the blocker, say which in a line of the message that
 starts `user-only:` and give the steps below. A `handoff-guard` hook enforces this
 at the end of a turn, so the rule holds even when a session forgets it. It ships
-in the house plugin, and on a machine without the plugin it is registered
-straight from this repo's checkout in each config dir's `settings.json`.
+in the house plugin, and on a machine without the plugin it runs from a copied,
+smoke-tested install (never straight from a working checkout) that each config
+dir's `settings.json` points at.
 
 ## When you need something from me
 
