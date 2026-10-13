@@ -857,6 +857,79 @@ expect_eq "0" "$(unverified "$TMP/does-not-exist.jsonl" u8)" "a missing transcri
 rc=$( printf '{"session_id":"u9"}' | bash "$SCRIPTS/unverified-done.sh" >/dev/null 2>&1; echo $? )
 expect_eq "0" "$rc" "no transcript path at all says nothing"
 
+printf '\n== handoff-guard ==\n'
+
+# The final message arrives in the payload (newer Claude Code) or has to be read
+# from the transcript (older). Most cases use the payload; two cover the fallback.
+handoff() {  # $1 = final message  $2 = extra payload fields, e.g. ,"stop_hook_active":true
+  printf '{"session_id":"h1","last_assistant_message":%s%s}' "$(json_str "$1")" "${2:-}" \
+    | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>"$TMP/stderr"
+  echo $?
+}
+
+# Hand-offs of something the session could have run itself: blocked.
+expect_eq "2" "$(handoff 'Done. Run `python3 check.py` and paste the output.')" \
+  "an inline command after 'run' is a hand-off"
+expect_eq "2" "$(handoff "$(printf 'Next:\n! /usr/bin/python3 ~/tools/x.py --shape\n')")" \
+  "a '! command' line is a hand-off"
+expect_eq "2" "$(handoff "$(printf 'Run this:\n\n```\ngit status\n```\n')")" \
+  "a fenced block after 'run this' is a hand-off"
+expect_eq "2" "$(handoff "$(printf '1. Type `curl -s localhost:8000/health` in a tab\n')")" \
+  "a numbered step that says to type a command is a hand-off"
+expect_eq "2" "$(handoff 'Run `cd ~/repo && python3 -m unittest` for me.')" \
+  "a chain of runnable commands is a hand-off"
+handoff 'Run `python3 check.py`.' >/dev/null
+case $(cat "$TMP/stderr") in *'python3 check.py'*'Run it now'*) pass "the refusal names the command and says to run it" ;;
+  *) fail "the refusal names the command and says to run it" "$(cat "$TMP/stderr")" ;; esac
+
+# Only the user can do these, so handing them over is correct.
+expect_eq "0" "$(handoff 'Run `/usr/bin/python3 ~/tools/x.py --login` in a normal tab.')" "a sign-in is the user's"
+expect_eq "0" "$(handoff 'Run `security add-generic-password -a x -s y -w` and paste the key.')" "typing a secret is the user's"
+expect_eq "0" "$(handoff 'Run `sudo launchctl bootout system/x`.')" "sudo is the user's"
+expect_eq "0" "$(handoff 'Open a new session: run `claude` and ask it again.')" "starting a new session is the user's"
+expect_eq "0" "$(handoff 'Run `gcloud auth login` first.')" "a cloud sign-in is the user's"
+expect_eq "0" "$(handoff 'Run `git push --force origin main` if you agree.')" "a forced push is the user's call"
+expect_eq "0" "$(handoff 'Run `rm -rf ~/old` once you have checked it.')" "a recursive delete is the user's call"
+expect_eq "0" "$(handoff 'Run `python3 lookup.py <your email>` and paste the row.')" "a command with a placeholder only they can fill is theirs"
+expect_eq "0" "$(handoff 'Type `fallback: datadog` as its own message.')" "an approval phrase is the user's"
+
+# The same rules inside a chain, where the first word alone looks harmless.
+expect_eq "0" "$(handoff 'Run `cd ~/x && sudo make install`.')" "sudo inside a chain is the user's"
+expect_eq "0" "$(handoff 'Run `cd ~/x && claude -p hi`.')" "a child session inside a chain is the user's"
+expect_eq "0" "$(handoff 'Run `echo fallback: datadog`.')" "an approval phrase inside a command is the user's"
+expect_eq "0" "$(handoff 'Run `cd ~/x && rm -rf build`.')" "a recursive delete inside a chain is the user's call"
+
+# The escape hatch: a stated reason passes, even with a runnable command in it.
+expect_eq "0" "$(handoff 'user-only: needs the work account. Run `python3 check.py` there.')" "a user-only reason passes"
+expect_eq "2" "$(handoff 'Run `python3 check.py`. user-only:')" "the hatch needs a reason after it"
+
+# Not hand-offs: prose that merely mentions code.
+expect_eq "0" "$(handoff 'I ran `python3 check.py` and it passed.')" "past tense is a report, not a hand-off"
+expect_eq "0" "$(handoff 'The script `python3 check.py` reads one file.')" "a mention with no verb is not a hand-off"
+expect_eq "0" "$(handoff "$(printf 'Here is the change:\n\n```\ngit diff\n```\n')")" "a code block with no verb before it is an example"
+expect_eq "0" "$(handoff 'Run the full suite when you have a minute, which takes a while on this laptop `python3 check.py`.')" \
+  "a verb far from the inline code does not count"
+expect_eq "0" "$(handoff 'Run `my-cli --do-it` to deploy.')" "a command the session cannot run (unknown binary) is left alone"
+
+# Once per stop, never a loop; and every unreadable case is silence.
+expect_eq "0" "$(handoff 'Run `python3 check.py`.' ',"stop_hook_active":true')" "it never blocks the same stop twice"
+expect_eq "0" "$(handoff '')" "an empty message says nothing"
+rc=$( printf 'not json' | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "an unparseable payload says nothing"
+rc=$( printf '{"session_id":"h2"}' | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "no message and no transcript says nothing"
+
+# Transcript fallback: the last assistant message with text decides.
+am() { printf '{"type":"assistant","message":{"content":[{"type":"text","text":%s}]}}\n' "$(json_str "$1")"; }
+{ am 'Run `python3 old.py` first.'; am 'All done, nothing for you to run.'; } >"$TMP/t-hand-clean.jsonl"
+rc=$( printf '{"session_id":"h3","transcript_path":"%s"}' "$TMP/t-hand-clean.jsonl" \
+        | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "an earlier hand-off does not count once the last message is clean"
+{ am 'Working on it.'; am 'Finished. Run `python3 check.py` and tell me what it prints.'; } >"$TMP/t-hand-bad.jsonl"
+rc=$( printf '{"session_id":"h4","transcript_path":"%s"}' "$TMP/t-hand-bad.jsonl" \
+        | bash "$SCRIPTS/handoff-guard.sh" >/dev/null 2>&1; echo $? )
+expect_eq "2" "$rc" "the transcript fallback finds a hand-off in the last message"
+
 printf '\n== deny-path-scan ==\n'
 
 DENYR="$TMP/denyrepo"
