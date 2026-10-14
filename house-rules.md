@@ -152,6 +152,12 @@ that caught it was `node --check` happening to run afterwards. Edit fails
 loudly when its target doesn't match; a script writes the damage and returns
 zero. Use Bash freely for reading, searching, and running things.
 
+Read a file with the Read tool in the same session before you Edit it. Having
+seen its text through `grep`, `cat` or another command does not count, and the
+Read state is lost when the context is compacted, so Read again after one. An
+Edit without a Read fails and costs a round trip; it was the most common
+avoidable tool error in the session logs.
+
 ## When a tool call is denied
 
 A denial is the end of that approach, not an obstacle to route around. Do not
