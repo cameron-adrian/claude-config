@@ -113,9 +113,23 @@ def candidate_lines(block):
 
 flagged = []
 
+def is_bare_directory(line):
+    # A lone path that is a folder: "started from `~/repo`", "in `./app`". It names
+    # where to work, and nothing runs when a folder is typed on its own, so it is
+    # not a hand-off. Only an existing folder counts: a lone script path still runs.
+    cmd = re.sub(r"^\s*(?:\$|!|>)\s*", "", line).strip()
+    if not cmd or re.search(r"\s", cmd):
+        return False
+    try:
+        return os.path.isdir(os.path.expanduser(cmd))
+    except Exception:
+        return False
+
 def consider(block):
     for line in candidate_lines(block):
         if USER_ONLY.search(line):
+            continue
+        if is_bare_directory(line):
             continue
         if RUNNABLE.match(first_word(line)):
             flagged.append(re.sub(r"^\s*(?:\$|!)\s*", "", line))

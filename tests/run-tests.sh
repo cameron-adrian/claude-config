@@ -912,6 +912,19 @@ expect_eq "2" "$(handoff 'Run `git log origin/main...HEAD`.')" "a git range is n
 expect_eq "0" "$(handoff 'Run `python3 x.py ...` with the ids.')" "a stand-alone ... is still a placeholder"
 expect_eq "0" "$(handoff 'Run `ssh build-box uptime`.')" "ssh as the command is still the user's"
 
+# A lone folder names where to work; nothing runs when one is typed on its own.
+# Seen when a message said "paste it into Codex, started from `~/Work/repo`" and
+# the folder was read as a command. Run from $TMP so ./appdir is a real folder.
+mkdir -p "$TMP/appdir"
+printf '#!/bin/sh\n' >"$TMP/run-me.sh"
+expect_eq "0" "$(cd "$TMP" && handoff 'Paste it into Codex, started from `./appdir`.')" \
+  "a lone existing folder after 'paste' is where to work, not a command"
+expect_eq "0" "$(cd "$TMP" && handoff 'Run the prompt from `./appdir`:')" \
+  "a lone existing folder after 'run' is where to work, not a command"
+expect_eq "2" "$(cd "$TMP" && handoff 'Run `./run-me.sh`.')" "a lone script path is still a command"
+expect_eq "2" "$(cd "$TMP" && handoff 'Run `./no-such-dir`.')" "a lone path that is not a folder here is still a command"
+expect_eq "2" "$(cd "$TMP" && handoff 'Run `cd ./appdir`.')" "a folder with a command in front of it is still a command"
+
 # The escape hatch: a stated reason passes, even with a runnable command in it.
 expect_eq "0" "$(handoff 'user-only: needs the work account. Run `python3 check.py` there.')" "a user-only reason passes"
 expect_eq "2" "$(handoff 'Run `python3 check.py`. user-only:')" "the hatch needs a reason after it"
