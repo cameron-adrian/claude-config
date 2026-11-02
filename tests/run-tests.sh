@@ -1057,10 +1057,12 @@ expect_eq "0" "$(ncalls)" "no user-only line: not a single gh call"
 board stop "$BREPO" s1 "Built it. user-only: needs your GitHub sign-in to create the token."
 expect_eq "0" "$BOARD_RC" "flagging never blocks the stop"
 has_call "POST repos/cameron-adrian/demo/issues" "no linked card: opens a new issue"
-case "$(sent /demo/issues)" in
+# No leading slash on the suffix: Git Bash rewrites a /-leading argument into a
+# Windows path before python sees it, and the match silently finds nothing.
+case "$(sent demo/issues)" in
   *'"title": "Needs you: needs your GitHub sign-in to create the token."'*'"needs-me"'*)
     pass "the new issue is titled from the reason and labelled needs-me" ;;
-  *) fail "the new issue is titled from the reason and labelled needs-me" "$(sent /demo/issues)" ;; esac
+  *) fail "the new issue is titled from the reason and labelled needs-me" "$(sent demo/issues)" ;; esac
 case "$(cat "$TMP/board-out")" in *'opened cameron-adrian/demo#77'*) pass "it tells the user which card it opened" ;;
   *) fail "it tells the user which card it opened" "$(cat "$TMP/board-out")" ;; esac
 
