@@ -963,6 +963,190 @@ rc=$( printf '{"session_id":"h5","transcript_path":"%s"}' "$TMP/t-hand-side.json
 expect_eq "0" "$rc" "a subagent's message is not the session's last word"
 }
 
+printf '\n== board ==\n'
+
+# A fake gh on PATH that records every call (args + stdin) as one JSON line and
+# answers the few REST paths the hook reads. Every assertion below is about which
+# calls were made -- above all, that a work repo gets none.
+FAKEBIN="$TMP/fakebin"
+mkdir -p "$FAKEBIN"
+cat >"$FAKEBIN/fake_gh.py" <<'PYEOF'
+import json, os, re, sys
+args = sys.argv[1:]
+data = "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read()
+with open(os.environ["FAKE_GH_LOG"], "a", encoding="utf-8") as fh:
+    fh.write(json.dumps({"args": args, "stdin": data}) + "\n")
+if os.environ.get("FAKE_GH_FAIL"):
+    sys.exit(1)
+method = args[args.index("-X") + 1] if "-X" in args else "GET"
+path = next((a for a in args if a.startswith("repos/")), "")
+if method == "GET" and "/pulls" in path:
+    print(os.environ.get("FAKE_GH_PULLS", "[]"))
+elif method == "GET" and re.search(r"/issues/\d+$", path):
+    print(json.dumps({"state": os.environ.get("FAKE_GH_ISSUE_STATE", "open")}))
+elif method == "POST" and re.search(r"^repos/[^/]+/[^/]+/issues$", path):
+    print(json.dumps({"number": 77}))
+else:
+    print("{}")
+PYEOF
+PY_ABS=$(command -v "$PY_BIN")
+printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "$PY_ABS" "$FAKEBIN/fake_gh.py" >"$FAKEBIN/gh"
+chmod +x "$FAKEBIN/gh"
+if command -v cygpath >/dev/null 2>&1; then   # Windows: python resolves gh.bat, not a sh script
+  printf '@"%s" "%s" %%*\r\n' "$(cygpath -w "$PY_ABS")" "$(cygpath -w "$FAKEBIN/fake_gh.py")" >"$FAKEBIN/gh.bat"
+fi
+
+BOARD_LOG="$TMP/gh-calls.jsonl"
+BOARD_DATA="$TMP/boarddata"
+
+mkrepo() {  # $1 = dir  $2 = origin url ("" for none)  $3 = branch
+  mkdir -p "$1"
+  (
+    cd "$1" || exit 1
+    git init -q -b "$3" .
+    git config user.email t@t.t
+    git config user.name t
+    [ -n "$2" ] && git remote add origin "$2"
+    printf 'x\n' >f
+    git add -A
+    git commit -qm init
+  ) >/dev/null 2>&1
+}
+BREPO="$TMP/board-personal"; mkrepo "$BREPO" "https://github.com/cameron-adrian/demo.git" "feat-x"
+BWORK="$TMP/board-work";     mkrepo "$BWORK" "" "main"
+BFOREIGN="$TMP/board-foreign"; mkrepo "$BFOREIGN" "git@github.com:someone-else/x.git" "main"
+
+# Run the hook. $1 = mode  $2 = cwd  $3 = session  $4 = last message
+board() {
+  : >"$BOARD_LOG"
+  printf '{"session_id":"%s","cwd":%s,"last_assistant_message":%s%s}' \
+      "$3" "$(json_str "$2")" "$(json_str "${4:-}")" "${5:-}" \
+    | PATH="$FAKEBIN:$PATH" FAKE_GH_LOG="$BOARD_LOG" CLAUDE_PLUGIN_DATA="$BOARD_DATA" \
+      bash "$SCRIPTS/board.sh" "$1" >"$TMP/board-out" 2>/dev/null
+  BOARD_RC=$?
+}
+calls() {  # every call as one "METHOD path" line, in order
+  "$PY_BIN" -c '
+import json, sys
+for line in open(sys.argv[1], encoding="utf-8"):
+    a = json.loads(line)["args"]
+    m = a[a.index("-X") + 1] if "-X" in a else "GET"
+    print(m, next((x for x in a if x.startswith("repos/")), "?").split("?")[0])
+' "$BOARD_LOG" 2>/dev/null
+}
+ncalls() { calls | grep -c . | tr -d ' '; }
+has_call() {  # $1 = "METHOD path"  $2 = test name
+  if calls | grep -qxF "$1"; then pass "$2"; else fail "$2" "calls were: $(calls | tr '\n' ';')"; fi
+}
+lacks_call() {
+  if calls | grep -qF "$1"; then fail "$2" "calls were: $(calls | tr '\n' ';')"; else pass "$2"; fi
+}
+sent() {  # stdin of the first call whose path ends with $1
+  "$PY_BIN" -c '
+import json, sys
+for line in open(sys.argv[1], encoding="utf-8"):
+    d = json.loads(line)
+    if any(x.split("?")[0].endswith(sys.argv[2]) for x in d["args"]):
+        print(d["stdin"]); break
+' "$BOARD_LOG" "$1" 2>/dev/null
+}
+
+# Silent unless the last message says user-only.
+board stop "$BREPO" s1 "All done, PR is up."
+expect_eq "0" "$(ncalls)" "no user-only line: not a single gh call"
+
+# No card yet: a new issue titled from the reason, labelled needs-me.
+board stop "$BREPO" s1 "Built it. user-only: needs your GitHub sign-in to create the token."
+expect_eq "0" "$BOARD_RC" "flagging never blocks the stop"
+has_call "POST repos/cameron-adrian/demo/issues" "no linked card: opens a new issue"
+case "$(sent /demo/issues)" in
+  *'"title": "Needs you: needs your GitHub sign-in to create the token."'*'"needs-me"'*)
+    pass "the new issue is titled from the reason and labelled needs-me" ;;
+  *) fail "the new issue is titled from the reason and labelled needs-me" "$(sent /demo/issues)" ;; esac
+case "$(cat "$TMP/board-out")" in *'opened cameron-adrian/demo#77'*) pass "it tells the user which card it opened" ;;
+  *) fail "it tells the user which card it opened" "$(cat "$TMP/board-out")" ;; esac
+
+# The same blocker again is already on the card.
+board stop "$BREPO" s1 "Still waiting. user-only: needs your GitHub sign-in to create the token."
+expect_eq "0" "$(ncalls)" "the same blocker twice: no repeat comment"
+
+# A new blocker in the same session goes on the same card.
+board stop "$BREPO" s1 "user-only: pick a name for the new repo."
+has_call "POST repos/cameron-adrian/demo/issues/77/comments" "a new blocker comments on this session's card"
+if calls | grep -qxF "POST repos/cameron-adrian/demo/issues"; then
+  fail "a second blocker never opens a second card" "$(calls | tr '\n' ';')"
+else pass "a second blocker never opens a second card"; fi
+
+# The user replies: flag off, card back to doing, and the session is told the link.
+board prompt "$BREPO" s1
+has_call "DELETE repos/cameron-adrian/demo/issues/77/labels/needs-me" "a reply clears needs-me"
+has_call "POST repos/cameron-adrian/demo/issues/77/labels" "a reply puts the card back to doing"
+case "$(cat "$TMP/board-out")" in *'Closes #77'*) pass "the session is told to close the card from its PR" ;;
+  *) fail "the session is told to close the card from its PR" "$(cat "$TMP/board-out")" ;; esac
+board prompt "$BREPO" s1
+expect_eq "0" "$(ncalls)" "a second reply has nothing to clear"
+board prompt "$BREPO" never-flagged
+expect_eq "0" "$(ncalls)" "a session that never flagged a card makes no calls on a prompt"
+
+# The branch is linked to an issue: that issue is flagged, not a new one.
+git -C "$BREPO" config branch.feat-x.house-issue 12
+board stop "$BREPO" s2 "user-only: approve the schema change."
+has_call "POST repos/cameron-adrian/demo/issues/12/labels" "a linked issue gets the needs-me label"
+has_call "DELETE repos/cameron-adrian/demo/issues/12/labels/doing" "and loses doing while it waits"
+has_call "POST repos/cameron-adrian/demo/issues/12/comments" "and the reason is commented on it"
+if calls | grep -qxF "POST repos/cameron-adrian/demo/issues"; then
+  fail "a linked issue is never duplicated" "$(calls | tr '\n' ';')"
+else pass "a linked issue is never duplicated"; fi
+
+# ...unless it is closed, when it would vanish from the board.
+FAKE_GH_ISSUE_STATE=closed board stop "$BREPO" s3 "user-only: approve the schema change."
+has_call "POST repos/cameron-adrian/demo/issues" "a closed linked issue gets a fresh card instead"
+git -C "$BREPO" config --unset branch.feat-x.house-issue
+
+# The branch's open PR closes an issue: that issue is the card.
+FAKE_GH_PULLS='[{"number":40,"body":"Adds the thing.\n\nCloses #5"}]' \
+  board stop "$BREPO" s4 "user-only: decide the default."
+has_call "POST repos/cameron-adrian/demo/issues/5/labels" "the issue a PR closes is the card"
+# An open PR that closes nothing: the PR itself carries the flag.
+FAKE_GH_PULLS='[{"number":41,"body":"No issue for this one."}]' \
+  board stop "$BREPO" s5 "user-only: decide the default."
+has_call "POST repos/cameron-adrian/demo/issues/41/labels" "a PR with no issue carries the flag itself"
+lacks_call "labels/doing" "a PR is never given or stripped of doing"
+
+# Where the board must not reach: a work repo and someone else's repo.
+board stop "$BWORK" w1 "user-only: needs the work VPN."
+expect_eq "0" "$(ncalls)" "a work repo with no GitHub remote: not a single gh call"
+board prompt "$BWORK" w1
+expect_eq "0" "$(ncalls)" "and nothing on the next prompt either"
+board stop "$BFOREIGN" f1 "user-only: needs the maintainer."
+expect_eq "0" "$(ncalls)" "someone else's repo: not a single gh call"
+
+# The second stop after handoff-guard bounced the first still flags.
+board stop "$BREPO" s6 "user-only: needs your password." ',"stop_hook_active":true'
+has_call "POST repos/cameron-adrian/demo/issues" "it still flags on the stop after a handoff-guard bounce"
+
+# GitHub unreachable: silent, and nothing remembered, so the next stop retries.
+FAKE_GH_FAIL=1 board stop "$BREPO" s7 "user-only: needs your password."
+expect_eq "0" "$BOARD_RC" "gh failing never blocks the stop"
+expect_empty "$(cat "$TMP/board-out")" "gh failing says nothing"
+board stop "$BREPO" s7 "user-only: needs your password."
+has_call "POST repos/cameron-adrian/demo/issues" "after a failure the next stop tries again"
+
+# Unreadable input is silence.
+rc=$( printf 'not json' | PATH="$FAKEBIN:$PATH" FAKE_GH_LOG="$BOARD_LOG" bash "$SCRIPTS/board.sh" stop >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "an unparseable payload says nothing"
+rc=$( printf '{}' | bash "$SCRIPTS/board.sh" bogus-mode >/dev/null 2>&1; echo $? )
+expect_eq "0" "$rc" "an unknown mode says nothing"
+
+# Wired in: a hook script that is never registered protects nothing.
+wired=$("$PY_BIN" -c '
+import json, sys
+h = json.load(open(sys.argv[1]))["hooks"]
+cmds = lambda ev: " ".join(x["command"] for g in h.get(ev, []) for x in g["hooks"])
+print(("board.sh\" stop" in cmds("Stop")), ("board.sh\" prompt" in cmds("UserPromptSubmit")))
+' "$ROOT/plugins/house/hooks/hooks.json" 2>/dev/null)
+expect_eq "True True" "$wired" "board.sh is registered on Stop and UserPromptSubmit"
+
 printf '\n== deny-path-scan ==\n'
 
 DENYR="$TMP/denyrepo"

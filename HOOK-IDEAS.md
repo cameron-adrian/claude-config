@@ -167,3 +167,32 @@ How it resolved, and what to keep when changing it:
 - **Mutation-tested.** The first pass left four exclusions that no test caught
   because the first-word check already covered them; they only matter inside a
   chain (`cd x && sudo ...`), so each now has a chain test.
+
+---
+
+## 2026-11-02 — `board`: a personal GitHub board where I only check what needs me — `in progress` (plugin 1.4.0)
+
+> "how could we implement a task manager like they're describing? … where I only
+> have to interact with the board and make sure things are progressing, and when
+> I'm needed on things I check in"
+
+Inspired by a r/claude thread where agents write straight into a task manager
+and the human reads only the board. Split in two, because work tooling never
+touches GitHub: work gets Kanzo, a local board set up on the work machine and not
+part of this repo. Personal work gets this.
+
+How it resolved, and what to keep when changing it:
+
+- **Labels, not a GitHub Project.** Cloud sessions reach GitHub's REST API but
+  not GraphQL, and Projects (and most `gh issue`/`gh pr` subcommands) are
+  GraphQL-only. Two labels over REST work from every session on every machine.
+- **The `user-only:` line is the signal.** `handoff-guard` already makes a session
+  state when it is waiting on the user; `board.sh` turns that line into a
+  `needs-me` label and a comment on the session's card, and the user's next
+  message in that session clears it. No new habit for sessions to forget.
+- **Never a lost blocker.** With no linked issue or PR, the hook opens an issue
+  rather than dropping the flag.
+- **Work repos get zero calls.** Tested as "not a single gh call", the same for
+  someone else's repo. Mutation-tested: dropping the owner check turns that red.
+- **Still open:** a scheduled task that picks up To do cards on its own, and a
+  daily digest of the board.

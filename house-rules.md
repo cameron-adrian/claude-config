@@ -61,6 +61,19 @@ No prose, no preamble. Numbered steps, exact commands to run, and anything
 else that's actually blocking you from continuing hands-free — only for the
 things above that are mine to do.
 
+## The board
+
+In personal repos I run work from a board, not from conversations: GitHub issues
+and PRs across all my repos, with `needs-me` and `doing` labels (`/house:board`
+shows it). When you work on an issue, run `/house:board start <n>` first, and
+put `Closes #<n>` in the body of its PR. Small work with no issue needs no card:
+its PR is the card. Never create, label or comment on cards for a local-only
+work repo.
+
+You don't flag blockers by hand: the `board` hook reads your `user-only:` line
+when the turn ends and flags the card. So make that line the actual question,
+specific enough that I can answer it from my phone without opening the session.
+
 ## Committing changes
 
 I don't write code myself, so git history is the only record of what changed
