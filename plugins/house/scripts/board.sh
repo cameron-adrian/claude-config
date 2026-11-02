@@ -36,14 +36,24 @@ SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 mode="${1:-}"
 case "$mode" in stop|prompt) ;; *) exit 0 ;; esac
 
-command -v gh >/dev/null 2>&1 || exit 0
-
 input=$(cat)
 
 printf '%s' "$input" | house_py -c '
-import hashlib, json, os, re, subprocess, sys, urllib.parse
+import hashlib, json, os, re, shutil, subprocess, sys, urllib.parse
 
 mode = sys.argv[1]
+
+# gh, found the way the OS finds it (on Windows, gh.exe via PATHEXT).
+# HOUSE_GH is the test seam: a .py path runs under this interpreter, so the
+# suite can stand in a fake that works the same on every OS and never reaches
+# the real gh.
+_seam = os.environ.get("HOUSE_GH", "")
+if _seam.endswith(".py"):
+    GH = [sys.executable, _seam]
+elif _seam or shutil.which("gh"):
+    GH = [_seam or shutil.which("gh")]
+else:
+    sys.exit(0)
 try:
     payload = json.loads(sys.stdin.read() or "{}")
 except Exception:
@@ -78,7 +88,7 @@ def run(args, cwd=None, stdin=None):
 
 def api(method, path, body=None):
     """One REST call. Parsed JSON on success ({} for an empty body), None on failure."""
-    args = ["gh", "api", "-X", method, path]
+    args = GH + ["api", "-X", method, path]
     if body is not None:
         args += ["--input", "-"]
     rc, out = run(args, stdin=json.dumps(body) if body is not None else None)

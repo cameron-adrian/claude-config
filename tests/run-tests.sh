@@ -989,15 +989,13 @@ elif method == "POST" and re.search(r"^repos/[^/]+/[^/]+/issues$", path):
 else:
     print("{}")
 PYEOF
-PY_ABS=$(command -v "$PY_BIN")
-printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "$PY_ABS" "$FAKEBIN/fake_gh.py" >"$FAKEBIN/gh"
-chmod +x "$FAKEBIN/gh"
-if command -v cygpath >/dev/null 2>&1; then   # Windows: python resolves gh.bat, not a sh script
-  printf '@"%s" "%s" %%*\r\n' "$(cygpath -w "$PY_ABS")" "$(cygpath -w "$FAKEBIN/fake_gh.py")" >"$FAKEBIN/gh.bat"
-fi
-
-BOARD_LOG="$TMP/gh-calls.jsonl"
-BOARD_DATA="$TMP/boarddata"
+# Handed to the hook through its HOUSE_GH seam rather than as a `gh` on PATH:
+# python on Windows only starts .exe files, so a fake on PATH is never run there
+# and the real gh.exe would be called instead. Paths go to python in its own form.
+winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
+FAKE_GH=$(winpath "$FAKEBIN/fake_gh.py")
+BOARD_LOG=$(winpath "$TMP/gh-calls.jsonl")
+BOARD_DATA=$(winpath "$TMP/boarddata")
 
 mkrepo() {  # $1 = dir  $2 = origin url ("" for none)  $3 = branch
   mkdir -p "$1"
@@ -1020,8 +1018,8 @@ BFOREIGN="$TMP/board-foreign"; mkrepo "$BFOREIGN" "git@github.com:someone-else/x
 board() {
   : >"$BOARD_LOG"
   printf '{"session_id":"%s","cwd":%s,"last_assistant_message":%s%s}' \
-      "$3" "$(json_str "$2")" "$(json_str "${4:-}")" "${5:-}" \
-    | PATH="$FAKEBIN:$PATH" FAKE_GH_LOG="$BOARD_LOG" CLAUDE_PLUGIN_DATA="$BOARD_DATA" \
+      "$3" "$(json_str "$(winpath "$2")")" "$(json_str "${4:-}")" "${5:-}" \
+    | HOUSE_GH="$FAKE_GH" FAKE_GH_LOG="$BOARD_LOG" CLAUDE_PLUGIN_DATA="$BOARD_DATA" \
       bash "$SCRIPTS/board.sh" "$1" >"$TMP/board-out" 2>/dev/null
   BOARD_RC=$?
 }
@@ -1133,7 +1131,7 @@ board stop "$BREPO" s7 "user-only: needs your password."
 has_call "POST repos/cameron-adrian/demo/issues" "after a failure the next stop tries again"
 
 # Unreadable input is silence.
-rc=$( printf 'not json' | PATH="$FAKEBIN:$PATH" FAKE_GH_LOG="$BOARD_LOG" bash "$SCRIPTS/board.sh" stop >/dev/null 2>&1; echo $? )
+rc=$( printf 'not json' | HOUSE_GH="$FAKE_GH" FAKE_GH_LOG="$BOARD_LOG" bash "$SCRIPTS/board.sh" stop >/dev/null 2>&1; echo $? )
 expect_eq "0" "$rc" "an unparseable payload says nothing"
 rc=$( printf '{}' | bash "$SCRIPTS/board.sh" bogus-mode >/dev/null 2>&1; echo $? )
 expect_eq "0" "$rc" "an unknown mode says nothing"
