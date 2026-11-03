@@ -45,10 +45,7 @@ import json, os, re, sys
 
 path = sys.argv[1]
 
-CODE = (
-    "js mjs cjs jsx ts tsx py sh bash zsh rb go rs java kt swift "
-    "c h cc cpp hpp cs php lua sql vue svelte astro tf ps1"
-).split()
+CODE = os.environ.get("HOUSE_CODE_EXTS", "").split()    # from lib.sh
 
 # Generous on purpose. Every entry here is something that could plausibly have
 # told the session it was wrong, and a missed nag costs nothing while a wrong

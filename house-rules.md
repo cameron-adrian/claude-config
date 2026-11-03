@@ -61,6 +61,59 @@ No prose, no preamble. Numbered steps, exact commands to run, and anything
 else that's actually blocking you from continuing hands-free — only for the
 things above that are mine to do.
 
+## Finishing work: you're a team, not a solo act
+
+Most of my messages to you are one of two things: correcting something
+obviously wrong or not what I meant, or telling you to carry on with the
+obvious next step. Both mean the work stopped too early. So nothing is done
+until it has been through all of this, without me asking. The tools are
+Anthropic's official plugins (`claude-plugins-official`), enabled in
+`settings.json`; use them rather than improvising your own version:
+
+1. **Pin down what I meant before building.** For a feature or anything
+   bigger than a quick fix, run `/feature-dev`: it explores the code, asks
+   its clarifying questions up front, and designs before writing. Put the
+   outcome and the checks that prove it (tests written and run, the feature
+   used end to end, edge cases tried) in your task list.
+2. **Show evidence, not claims.** Real command output, real counts, the page
+   actually loaded. "Should work" is not done.
+3. **Get it reviewed by someone who didn't write it.** Once it works, run
+   `/pr-review-toolkit:review-pr` (or one of its agents, such as
+   `silent-failure-hunter` or `pr-test-analyzer`, for a narrow change), and
+   give it my original request word for word. Before fixing a finding,
+   confirm it's real; close one that doesn't hold up with a one-line reason.
+   Stop after three review rounds: if it still fails, rethink the approach
+   instead of patching.
+4. **Don't stop early, and decide, don't ask.** For a long task, run it
+   under `/ralph-loop` with a completion promise, so it keeps going until the
+   checklist is genuinely done. If a choice can be undone (naming, structure,
+   a library, how to fix a test), make it, note it in the PR or commit
+   message, and keep going. Ask only for my `user-only` list, batched into one
+   message. Don't end a turn by offering the obvious next step ("Want me to
+   test it?"): do it.
+5. **When I correct you, make it stick.** After fixing a mistake I pointed
+   out, turn it into a hook with `/hookify` if a pattern can catch it, or
+   capture it with `/revise-claude-md` (the repo's `CLAUDE.md`, or these rules
+   for anything general). Check first that it isn't already there.
+
+**Before building anything custom, check for an official version first:**
+Claude Code's built-in commands and skills, then `claude-plugins-official`,
+then Anthropic's docs. Build custom only for what's genuinely specific to me,
+and say what you checked.
+
+## The board
+
+In personal repos I run work from a board, not from conversations: GitHub issues
+and PRs across all my repos, with `needs-me` and `doing` labels (`/house:board`
+shows it). When you work on an issue, run `/house:board start <n>` first, and
+put `Closes #<n>` in the body of its PR. Small work with no issue needs no card:
+its PR is the card. Never create, label or comment on cards for a local-only
+work repo.
+
+You don't flag blockers by hand: the `board` hook reads your `user-only:` line
+when the turn ends and flags the card. So make that line the actual question,
+specific enough that I can answer it from my phone without opening the session.
+
 ## Committing changes
 
 I don't write code myself, so git history is the only record of what changed

@@ -24,7 +24,12 @@
   "enabledPlugins": {
     "house@cameron-house": true,
     "i-have-adhd@i-have-adhd": true,
-    "cc-plugin-you-should-know@builtin": true
+    "cc-plugin-you-should-know@builtin": true,
+    "feature-dev@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "cameron-house": {
@@ -39,6 +44,13 @@
         "source": "github",
         "repo": "ayghri/i-have-adhd"
       }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      },
+      "autoUpdate": true
     }
   },
   "modelSettings": {

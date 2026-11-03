@@ -167,3 +167,77 @@ How it resolved, and what to keep when changing it:
 - **Mutation-tested.** The first pass left four exclusions that no test caught
   because the first-word check already covered them; they only matter inside a
   chain (`cd x && sudo ...`), so each now has a chain test.
+- **Prompts for other agents are not hand-offs** (2026-11-03, plugin 1.4.0). A
+  migration prompt written for the work Mac's agent was blocked over the
+  `git bundle verify` inside it, though this session could never reach that
+  machine. Text in a prose fence (```` ```markdown ````, ```` ```text ````,
+  ```` ```prompt ````) is now quoted material. Fences are matched by length, so a
+  four-backtick prompt can carry its own ```` ```bash ```` blocks. The trade: a
+  command handed over in a ```` ```text ```` fence passes, which the suite records
+  as deliberate.
+
+---
+
+## 2026-11-02 — `board`: a personal GitHub board where I only check what needs me — `in progress` (plugin 1.4.0)
+
+> "how could we implement a task manager like they're describing? … where I only
+> have to interact with the board and make sure things are progressing, and when
+> I'm needed on things I check in"
+
+Inspired by a r/claude thread where agents write straight into a task manager
+and the human reads only the board. Split in two, because work tooling never
+touches GitHub: work gets Kanzo, a local board set up on the work machine and not
+part of this repo. Personal work gets this.
+
+How it resolved, and what to keep when changing it:
+
+- **Labels, not a GitHub Project.** Cloud sessions reach GitHub's REST API but
+  not GraphQL, and Projects (and most `gh issue`/`gh pr` subcommands) are
+  GraphQL-only. Two labels over REST work from every session on every machine.
+- **The `user-only:` line is the signal.** `handoff-guard` already makes a session
+  state when it is waiting on the user; `board.sh` turns that line into a
+  `needs-me` label and a comment on the session's card, and the user's next
+  message in that session clears it. No new habit for sessions to forget.
+- **Never a lost blocker.** With no linked issue or PR, the hook opens an issue
+  rather than dropping the flag.
+- **Work repos get zero calls.** Tested as "not a single gh call", the same for
+  someone else's repo. Mutation-tested: dropping the owner check turns that red.
+- **Still open:** a scheduled task that picks up To do cards on its own, and a
+  daily digest of the board.
+
+---
+
+## 2026-11-03 — The team: agents that check each other and don't stop early — `done` (official plugins, plugin 1.4.0)
+
+> "MOST of the time I'm interacting with claude it's to do 1 of 2 things: 1. yell
+> at it for doing something obviously stupid or not my intent … 2. tell it to
+> continue doing the next obvious thing that it doesn't need handholding for, like
+> fully testing features and checking it's work thoroughly and verifying"
+
+Both are the work stopping too early: once before anyone but the builder looked
+at it, once before the obvious next steps were done. Modelled on how Anthropic
+runs its own agents: a written definition of done up front, evidence instead of
+claims, and a separate agent judging the work, since builders overrate their
+own output.
+
+How it resolved, and what to keep when changing it:
+
+- **First pass: built custom.** A house `reviewer` agent, a `keep-going` hook
+  (block the stop while the checklist has open items or the turn ends on "Want
+  me to…?") and an `unreviewed-done` hook, with 46 tests, mutation-tested and
+  code-reviewed. Never merged.
+- **Then swapped for Anthropic's own plugins**, after the user asked why this was
+  custom at all when it's becoming the default way of working:
+  > "is there a reason why we're doing this custom? … can we not just like,
+  > implement exact things that have already been defined elsewhere?"
+  `anthropics/claude-plugins-official` already ships each piece:
+  `pr-review-toolkit` (six specialist reviewers) and `code-review` for review,
+  `feature-dev` for pinning down intent up front, `ralph-loop` for not stopping
+  early, `hookify` and `claude-md-management` for turning corrections into hooks
+  and rules. `settings.json` enables five of them, the "Finishing work" house
+  rule points at them, and the suite pins the list.
+- **The lesson is now a house rule:** check built-ins, the official plugin
+  marketplace and Anthropic's docs before building anything custom.
+- **Still open:** Claude Code's experimental agent teams (`TaskCompleted` /
+  `TeammateIdle` hooks) once stable. And a shared transcript reader in `lib.sh`:
+  handoff-guard and board each parse "the last assistant message" themselves.
