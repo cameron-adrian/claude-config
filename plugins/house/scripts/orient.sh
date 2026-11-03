@@ -27,6 +27,45 @@ SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 input=$(cat)
 house_enter_payload_cwd "$input"
 
+# What is waiting on the user, from the personal GitHub board: open issues and
+# PRs labelled `needs-me` under the trusted owners. Printed before the repo
+# check on purpose, so it shows in every session -- any repo, any folder, cloud
+# or local -- which is the point of a reminder. Two REST searches (the search
+# API refuses a query without is:issue or is:pr), short timeouts, and silence on
+# any failure: no gh, no auth, no network. HOUSE_GH is the same test seam as
+# board.sh.
+needs=$(house_py -c '
+import json, os, re, shutil, subprocess, sys
+seam = os.environ.get("HOUSE_GH", "")
+if seam.endswith(".py"):
+    gh = [sys.executable, seam]
+elif seam or shutil.which("gh"):
+    gh = [seam or shutil.which("gh")]
+else:
+    sys.exit(0)
+owners = [o for o in re.split(r"[,\s]+", os.environ.get("HOUSE_TRUSTED_OWNERS") or "cameron-adrian") if o]
+q = " ".join("user:" + o for o in owners)
+rows = []
+for kind in ("issue", "pr"):
+    try:
+        r = subprocess.run(gh + ["api", "-X", "GET", "search/issues",
+                                 "-f", "q=is:open is:%s label:needs-me %s" % (kind, q),
+                                 "-f", "per_page=10"],
+                           capture_output=True, text=True, timeout=6)
+        items = json.loads(r.stdout).get("items", []) if r.returncode == 0 else []
+    except Exception:
+        items = []
+    for it in items:
+        repo = "/".join(str(it.get("repository_url", "")).split("/")[-2:])
+        rows.append("- %s#%s %s (%s)" % (repo, it.get("number"), it.get("title", ""), it.get("html_url", "")))
+print("\n".join(rows[:8]))
+' 2>/dev/null)
+if [ -n "$needs" ]; then
+  printf '## Waiting on you (personal board)\n\n'
+  printf 'Open cards labelled `needs-me`. Tell the user about these first, briefly,\n'
+  printf 'before anything else in your first reply:\n\n%s\n\n' "$needs"
+fi
+
 house_in_repo || exit 0
 
 # Warm the local refs for whatever comes next. Backgrounded and never waited on,
