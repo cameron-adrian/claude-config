@@ -202,6 +202,10 @@ How it resolved, and what to keep when changing it:
   rather than dropping the flag.
 - **Work repos get zero calls.** Tested as "not a single gh call", the same for
   someone else's repo. Mutation-tested: dropping the owner check turns that red.
+- **Sessions open with what's waiting** (2026-11-03, plugin 1.4.1). `orient.sh`
+  lists open `needs-me` cards at the start of every session, before its repo
+  check, so it works in any folder. It doubles as the way to leave the user a
+  note: open a `needs-me` issue and the next session anywhere brings it up.
 - **Still open:** a scheduled task that picks up To do cards on its own, and a
   daily digest of the board.
 

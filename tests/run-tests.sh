@@ -311,6 +311,10 @@ mkdir -p "$FOREIGN"
 # trip through the payload. Python is already a hard dependency of this suite.
 json_str() { "$PY_BIN" -c 'import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))' "$1"; }
 
+# A path in the form python wants: on Windows (Git Bash) that is C:/... via
+# cygpath, since python there cannot open an MSYS /tmp/... path.
+winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
+
 owner_allow() {  # $1 = repo dir, $2 = command
   ( cd "$1" && printf '{"tool_input":{"command":%s}}' "$(json_str "$2")" \
       | bash "$SCRIPTS/owner-allow.sh" 2>/dev/null )
@@ -493,8 +497,34 @@ out=$( cd "$REPO" && printf '{"session_start_reason":"startup"}' | bash "$SCRIPT
 case "$out" in *"Branch:"*) pass "reports the branch";; *) fail "reports the branch" "got: $out";; esac
 case "$out" in *"uncommitted"*) pass "reports uncommitted work";; *) fail "reports uncommitted work" "got: $out";; esac
 
-out=$( cd "$TMP" && printf '{}' | bash "$SCRIPTS/orient.sh" 2>/dev/null )
-expect_empty "$out" "says nothing outside a git repo"
+out=$( cd "$TMP" && printf '{}' | HOUSE_GH=/no/such/gh bash "$SCRIPTS/orient.sh" 2>/dev/null )
+expect_empty "$out" "says nothing outside a git repo when nothing is waiting"
+
+# The board reminder: open needs-me cards, shown in every session, repo or not.
+ORIENT_GH="$TMP/orient_gh.py"
+cat >"$ORIENT_GH" <<'PYEOF'
+import json, os, sys
+q = next((a[2:] for a in sys.argv if a.startswith("q=")), "")
+if os.environ.get("ORIENT_GH_FAIL"):
+    sys.exit(1)
+items = []
+if "is:issue" in q and "label:needs-me" in q and "user:cameron-adrian" in q:
+    items = [{"number": 27, "title": "Check jq for ralph-loop",
+              "repository_url": "https://api.github.com/repos/cameron-adrian/claude-config",
+              "html_url": "https://github.com/cameron-adrian/claude-config/issues/27"}]
+print(json.dumps({"items": items}))
+PYEOF
+ORIENT_GH_W=$(winpath "$ORIENT_GH")
+out=$( cd "$TMP" && printf '{}' | HOUSE_GH="$ORIENT_GH_W" bash "$SCRIPTS/orient.sh" 2>/dev/null )
+case "$out" in *"Waiting on you"*"claude-config#27 Check jq for ralph-loop"*) pass "an open needs-me card is shown even outside a repo" ;;
+  *) fail "an open needs-me card is shown even outside a repo" "got: $out" ;; esac
+out=$( cd "$REPO" && printf '{}' | HOUSE_GH="$ORIENT_GH_W" bash "$SCRIPTS/orient.sh" 2>/dev/null )
+case "$out" in *"Waiting on you"*"Repo state"*) pass "inside a repo the reminder comes first, then the repo state" ;;
+  *) fail "inside a repo the reminder comes first, then the repo state" "got: $out" ;; esac
+out=$( cd "$TMP" && printf '{}' | HOUSE_GH="$ORIENT_GH_W" HOUSE_TRUSTED_OWNERS=someone-else bash "$SCRIPTS/orient.sh" 2>/dev/null )
+expect_empty "$out" "only the trusted owners' cards are searched"
+out=$( cd "$TMP" && printf '{}' | HOUSE_GH="$ORIENT_GH_W" ORIENT_GH_FAIL=1 bash "$SCRIPTS/orient.sh" 2>/dev/null; echo "rc=$?" )
+expect_eq "rc=0" "$out" "GitHub unreachable: silent, and the session still starts"
 
 printf '\n== cloud-setup ==\n'
 
@@ -1010,8 +1040,7 @@ else:
 PYEOF
 # Handed to the hook through its HOUSE_GH seam rather than as a `gh` on PATH:
 # python on Windows only starts .exe files, so a fake on PATH is never run there
-# and the real gh.exe would be called instead. Paths go to python in its own form.
-winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
+# and the real gh.exe would be called instead. Paths go to python via winpath.
 FAKE_GH=$(winpath "$FAKEBIN/fake_gh.py")
 BOARD_LOG=$(winpath "$TMP/gh-calls.jsonl")
 BOARD_DATA=$(winpath "$TMP/boarddata")
