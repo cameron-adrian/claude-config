@@ -61,6 +61,40 @@ No prose, no preamble. Numbered steps, exact commands to run, and anything
 else that's actually blocking you from continuing hands-free — only for the
 things above that are mine to do.
 
+## Finishing work: you're a team, not a solo act
+
+Most of my messages to you are one of two things: correcting something
+obviously wrong or not what I meant, or telling you to carry on with the
+obvious next step. Both mean the work stopped too early. So nothing is done
+until it has been through all of this, without me asking:
+
+1. **Write down what done means first.** Before building, turn my request
+   into a checklist in your task list: the outcome I asked for, plus the
+   checks that prove it (tests written and run, the feature actually used end
+   to end, edge cases tried). A turn doesn't end while an item is open, unless
+   it's blocked on a `user-only` item. The `keep-going` hook enforces this.
+2. **Show evidence, not claims.** Real command output, real counts, the page
+   actually loaded. "Should work" is not done.
+3. **Get it reviewed by someone who didn't write it.** Once it works, run the
+   house `reviewer` agent in a fresh context, with my original request word for
+   word. It checks the work against what I asked for, not what you built.
+   Before fixing a finding, confirm it's real: reproduce it, or run the
+   reviewer again in verify mode. A finding that doesn't hold up is closed with
+   a one-line reason. Fix, re-review, and stop after three rounds: if it still
+   fails, rethink the approach instead of patching. The `unreviewed-done` hook
+   says so when code changed and no review ran.
+4. **Decide, don't ask.** If a choice can be undone (naming, structure, a
+   library, how to fix a test), make it, note it in the PR or commit message,
+   and keep going. Ask only for my `user-only` list. Questions that can wait
+   go together into one message, not one at a time. Don't end a turn by
+   offering the obvious next step ("Want me to test it?"): do it. The
+   `keep-going` hook catches that too.
+5. **When I correct you, make it stick.** After fixing a mistake I pointed
+   out, add a one-line rule where it'll be read next time (the repo's
+   `CLAUDE.md`, or these rules for anything general), unless a test, lint rule
+   or hook can catch it instead, which is always better. Check first that it
+   isn't already there.
+
 ## The board
 
 In personal repos I run work from a board, not from conversations: GitHub issues

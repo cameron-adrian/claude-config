@@ -204,3 +204,41 @@ How it resolved, and what to keep when changing it:
   someone else's repo. Mutation-tested: dropping the owner check turns that red.
 - **Still open:** a scheduled task that picks up To do cards on its own, and a
   daily digest of the board.
+
+---
+
+## 2026-11-03 — The team: agents that check each other and don't stop early — `in progress` (plugin 1.4.0)
+
+> "MOST of the time I'm interacting with claude it's to do 1 of 2 things: 1. yell
+> at it for doing something obviously stupid or not my intent … 2. tell it to
+> continue doing the next obvious thing that it doesn't need handholding for, like
+> fully testing features and checking it's work thoroughly and verifying"
+
+Both are the work stopping too early: once before anyone but the builder looked
+at it, once before the obvious next steps were done. Modelled on how Anthropic
+runs its own agents: a written definition of done up front, evidence instead of
+claims, and a separate agent judging the work, since builders overrate their
+own output.
+
+How it resolved, and what to keep when changing it:
+
+- **House rule "Finishing work"**: done-checklist in the task list, evidence,
+  independent review with confirmed findings and a three-round cap, decide
+  reversible choices, and every user correction becomes a rule (or better, a
+  test or hook).
+- **`house:reviewer` agent**: fresh context, barred from Write and Edit (a test
+  enforces that), judges against the user's words, with a verify mode for
+  confirming findings before they cost a fix round.
+- **`keep-going` hook**: open checklist items or a closing "Want me to…?" block the
+  stop once. The question form only counts when the sentence really is a
+  question; a mutation dropping that check is caught.
+- **`unreviewed-done` hook**: once per session, code changed with no review after
+  the last change.
+- **Reviewed before landing** (high-effort code review, 7 findings): open tasks
+  now only block when the checklist was worked this turn, so a mid-task question
+  gets answered; bold or bracketed offers count; a FAIL review is not "reviewed";
+  the source-extension list is shared through `lib.sh`.
+- **Still open:** Claude Code's experimental agent teams (`TaskCompleted` /
+  `TeammateIdle` hooks) as the next step once they're stable, with the reviewer
+  as a teammate role. And one shared transcript reader in `lib.sh`: handoff-guard,
+  board and keep-going each parse "the last assistant message" themselves.

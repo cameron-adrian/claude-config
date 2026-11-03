@@ -29,7 +29,7 @@ would mean eight PRs every time a rule changes.
 
 ## The `house` plugin
 
-Eleven hooks, most of them a bug that actually happened:
+Thirteen hooks, most of them a bug that actually happened:
 
 | Hook | Event | What it does |
 |---|---|---|
@@ -39,6 +39,8 @@ Eleven hooks, most of them a bug that actually happened:
 | `deny-path-scan.sh` | before every Bash call | Scopes a recursive sweep around any file behind a `Read(...)` deny rule, and hands back the exact `--exclude` to add. Walking into one cannot read it — it just stalls an unrelated search on an approval that can never be granted |
 | `unverified-done.sh` | session end | Says so, once, when source files changed and no test, build, lint or parse command ever ran. Reads the transcript, since `git status` cannot answer whether anything was executed |
 | `handoff-guard.sh` | session end | Refuses to end a turn that tells the user to run a command the session could have run itself (`! cmd` lines, or a command after "run / paste / type"). Sign-ins, typed secrets, sudo, new sessions, destructive or forced commands and `<placeholder>` commands are the user's and pass; so does a message with `user-only: <reason>`, and anything inside a ```` ```markdown ````/```` ```text ```` fence, which is a prompt for another agent. Blocks once per stop, so a wrong call costs one turn |
+| `keep-going.sh` | session end | Refuses to end a turn while the session's own checklist (its task list) still has open items, or when the turn ends by offering the obvious next step as a question ("Want me to run the tests?"). Most corrections a user makes are "keep going"; this makes the session not stop early in the first place. A `user-only:` reason passes. Blocks once per stop |
+| `unreviewed-done.sh` | session end | Says so, once, when source files changed and no review ran after the last change: the house `reviewer` agent, or a review skill. Builders overrate their own work, so done means someone else checked it |
 | `board.sh` | session end, and each prompt | Keeps the personal GitHub board current. When a turn ends on a `user-only:` line, the card the session is working on gets the `needs-me` label and the reason as a comment. If there's no card, it opens one. When the user replies in that session, the label comes off and the card goes back to `doing`. Only in repos whose `origin` is github.com under a trusted owner; a local-only work repo never gets a single call |
 | `git-gate.sh` | before every Bash call | Refuses force-pushes to the default branch; direct pushes that route around CI; merging a draft, a red PR, or one whose base has moved underneath it |
 | `owner-allow.sh` | before every Bash call | Auto-approves the everyday git write flow (`add`/`commit`/`push`/`pull`/`merge`/`rebase`/… and `gh pr create`/`merge`) — but only when `origin` is a github.com repo owned by a trusted account (`cameron-adrian` by default; override with `HOUSE_TRUSTED_OWNERS`). Never denies; `git-gate.sh` still guards the dangerous cases above |
@@ -50,6 +52,17 @@ Four commands: `/house:ship` (commit → push → PR → watch CI → merge),
 clone's), `/house:repo-doctor` (audit a repo against the rules and open a PR for
 what is missing), `/house:board` (the board across every repo, Needs you first;
 `start <n>` links a branch to a card, `add <title>` files one).
+
+One agent: **`house:reviewer`**, the independent skeptic from the "Finishing
+work" house rule. It runs in a fresh context with the user's original request
+word for word, checks the work against what was asked rather than what was
+built, re-runs the evidence itself, and returns PASS or FAIL with `path:line`
+findings. It has no Write or Edit tools and is told never to modify the tree
+through Bash either (no `--fix`, snapshot updates or `sed -i`), so it reports
+problems rather than quietly fixing them. In verify
+mode it confirms or refutes another review's findings before anyone acts on
+them. The pattern is Anthropic's own: separate the agent doing the work from the
+agent judging it.
 
 **The board** is GitHub issues and PRs with two labels, `needs-me` and `doing`,
 read with one search per column. It isn't a GitHub Project: cloud sessions can't
