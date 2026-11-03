@@ -17,6 +17,11 @@
 # that really does need the user says so with `user-only: <reason>` and passes --
 # the reason is on the page, so it is checked by the person reading it.
 #
+# Nor does anything inside a prose fence (```markdown, ```text, ```prompt...):
+# that is a prompt for another agent, often on a machine this session cannot
+# reach, and its commands are that agent's to run. Fences nest by length, so a
+# ````markdown prompt can hold ```bash blocks and stay one prompt.
+#
 # It blocks once per stop (stop_hook_active), so a wrong call costs one turn, never
 # a loop. FAIL OPEN everywhere else: no transcript, no text, no python -- silence.
 #
@@ -134,19 +139,55 @@ def consider(block):
         if RUNNABLE.match(first_word(line)):
             flagged.append(re.sub(r"^\s*(?:\$|!)\s*", "", line))
 
+# Fenced blocks, read the CommonMark way: a fence closes only on a run of the
+# same character at least as long as the one that opened it, so a ````markdown
+# prompt can carry ```bash blocks of its own without ending early. An unclosed
+# fence runs to the end of the message.
+def fenced_blocks(src):
+    out, cur, offset = [], None, 0
+    for line in src.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        if cur is None:
+            m = re.match(r"^ {0,3}(`{3,}|~{3,})[ \t]*([^`\s]*)", bare)
+            if m:
+                cur = (m.group(1)[0], len(m.group(1)), m.group(2).lower(),
+                       offset, offset + len(line))
+        else:
+            ch, n, info, start, body = cur
+            if re.match(r"^ {0,3}" + re.escape(ch) + "{" + str(n) + r",}[ \t]*$", bare):
+                out.append((start, offset + len(line), info, src[body:offset]))
+                cur = None
+        offset += len(line)
+    if cur is not None:
+        ch, n, info, start, body = cur
+        out.append((start, len(src), info, src[body:]))
+    return out
+
+# A prose fence is quoted material: almost always a prompt written for another
+# agent, often on a machine this session cannot reach. The commands inside are
+# instructions to that agent, not a hand-off to the user, so none of it counts.
+PROSE = {"markdown", "md", "text", "txt", "plaintext", "prompt"}
+blocks = fenced_blocks(text)
+scan = text
+for start, end, info, _ in reversed(blocks):
+    if info in PROSE:
+        scan = scan[:start] + "\n" * text.count("\n", start, end) + scan[end:]
+
 # 1. Lines that start with "!": the "run it in this session" prefix.
-for m in re.finditer(r"(?m)^[ \t]*(?:\d+[.)][ \t]*|[-*][ \t]*)?!\s+(\S[^\n]*)", text):
+for m in re.finditer(r"(?m)^[ \t]*(?:\d+[.)][ \t]*|[-*][ \t]*)?!\s+(\S[^\n]*)", scan):
     consider(m.group(1))
 
 # 2. Fenced blocks that follow a run/paste/type verb.
-for m in re.finditer(r"```[^\n]*\n(.*?)```", text, re.S):
-    if CONTEXT.search(text[max(0, m.start() - 200):m.start()]):
-        consider(m.group(1))
+for start, end, info, body in blocks:
+    if info in PROSE:
+        continue
+    if CONTEXT.search(text[max(0, start - 200):start]):
+        consider(body)
 
 # 3. Inline code on a line where a run/paste/type verb comes just before it.
-for m in re.finditer(r"`([^`\n]+)`", text):
-    line_start = text.rfind("\n", 0, m.start()) + 1
-    before = text[line_start:m.start()]
+for m in re.finditer(r"`([^`\n]+)`", scan):
+    line_start = scan.rfind("\n", 0, m.start()) + 1
+    before = scan[line_start:m.start()]
     if CONTEXT.search(before[-48:]):
         consider(m.group(1))
 

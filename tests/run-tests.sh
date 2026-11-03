@@ -937,6 +937,25 @@ expect_eq "0" "$(handoff 'Run the full suite when you have a minute, which takes
   "a verb far from the inline code does not count"
 expect_eq "0" "$(handoff 'Run `my-cli --do-it` to deploy.')" "a command the session cannot run (unknown binary) is left alone"
 
+# A prompt for another agent, in a prose fence, is not a hand-off: its commands
+# are that agent's to run, often on a machine the session cannot reach. Seen when
+# a migration prompt for the work Mac was blocked over `git bundle verify` in it.
+# Step 3 sits after the inner ``` closes: it is still prompt text only if fences
+# are matched by length, so it guards the nesting rather than just the labels.
+PROMPT4=$(printf 'Paste this into Codex on the work Mac:\n\n````markdown\n1. Back up first, and run `git bundle verify` on each.\n2. Run this:\n\n```bash\ngit -C ~/Work status\n```\n3. Then run `git rev-parse HEAD` and report it.\n````\n')
+expect_eq "0" "$(handoff "$PROMPT4")" "a 4-backtick markdown prompt for another agent is not a hand-off, nested fences included"
+expect_eq "0" "$(handoff "$(printf 'Paste this:\n\n```text\nIn ~/Work, run `git rev-parse --show-toplevel` and tell me.\n```\n')")" \
+  "a \`\`\`text prompt for another agent is not a hand-off"
+expect_eq "0" "$(handoff "$(printf 'Run this:\n\n```prompt\ngit status\n```\n')")" \
+  "a prose fence is quoted material even right after 'run this' (the deliberate trade)"
+# ...and the guard still sees past it to what the user is actually asked to do.
+expect_eq "2" "$(handoff "$(printf '%s\nThen run `git status` here and paste it back.\n' "$PROMPT4")")" \
+  "a hand-off after a prompt block is still a hand-off"
+expect_eq "2" "$(handoff "$(printf '%s\nRun this:\n\n```bash\npython3 check.py\n```\n' "$PROMPT4")")" \
+  "a bash block after a prompt block is still a hand-off"
+expect_eq "2" "$(handoff "$(printf 'Run this:\n\n```bash\ngit status\n```\n')")" "a \`\`\`bash block after 'run this' is a hand-off"
+expect_eq "2" "$(handoff "$(printf 'Run this:\n\n```\ngit status\n')")" "an unclosed fence after 'run this' is still a hand-off"
+
 # Once per stop, never a loop; and every unreadable case is silence.
 expect_eq "0" "$(handoff 'Run `python3 check.py`.' ',"stop_hook_active":true')" "it never blocks the same stop twice"
 expect_eq "0" "$(handoff '')" "an empty message says nothing"

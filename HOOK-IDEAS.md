@@ -167,6 +167,14 @@ How it resolved, and what to keep when changing it:
 - **Mutation-tested.** The first pass left four exclusions that no test caught
   because the first-word check already covered them; they only matter inside a
   chain (`cd x && sudo ...`), so each now has a chain test.
+- **Prompts for other agents are not hand-offs** (2026-11-03, plugin 1.4.0). A
+  migration prompt written for the work Mac's agent was blocked over the
+  `git bundle verify` inside it, though this session could never reach that
+  machine. Text in a prose fence (```` ```markdown ````, ```` ```text ````,
+  ```` ```prompt ````) is now quoted material. Fences are matched by length, so a
+  four-backtick prompt can carry its own ```` ```bash ```` blocks. The trade: a
+  command handed over in a ```` ```text ```` fence passes, which the suite records
+  as deliberate.
 
 ---
 
