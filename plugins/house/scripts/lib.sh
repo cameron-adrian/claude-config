@@ -20,8 +20,8 @@ house_py() {
   return 127
 }
 
-# File extensions that count as source code, for the hooks that ask "did code
-# change?" (unverified-done, unreviewed-done). One list, so they cannot drift.
+# File extensions that count as source code, for hooks that ask "did code
+# change?" (unverified-done). Kept here so any future hook shares one list.
 HOUSE_CODE_EXTS="js mjs cjs jsx ts tsx py sh bash zsh rb go rs java kt swift c h cc cpp hpp cs php lua sql vue svelte astro tf ps1"
 export HOUSE_CODE_EXTS
 

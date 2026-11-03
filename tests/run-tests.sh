@@ -1166,162 +1166,26 @@ print(("board.sh\" stop" in cmds("Stop")), ("board.sh\" prompt" in cmds("UserPro
 ' "$ROOT/plugins/house/hooks/hooks.json" 2>/dev/null)
 expect_eq "True True" "$wired" "board.sh is registered on Stop and UserPromptSubmit"
 
-printf '\n== keep-going ==\n'
+printf '\n== official plugins ==\n'
 
-# Transcript fixtures in the shape a real session writes (checked against one):
-# a tool_use in an assistant entry, its tool_result in the next user entry.
-kg_use() {  # $1 name  $2 input json  $3 id  $4 isSidechain (default false)
-  printf '{"type":"assistant","isSidechain":%s,"message":{"content":[{"type":"tool_use","id":"%s","name":"%s","input":%s}]}}\n' \
-    "${4:-false}" "$3" "$1" "$2"
-}
-kg_res() {  # $1 tool_use id  $2 result text
-  printf '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"%s","content":%s}]}}\n' "$1" "$(json_str "$2")"
-}
-kg() {  # $1 transcript  $2 final message ("" = read it from the transcript)  $3 extra payload
-  _msg=""
-  [ -n "$2" ] && _msg=",\"last_assistant_message\":$(json_str "$2")"
-  printf '{"session_id":"k","transcript_path":%s%s%s}' "$(json_str "$(winpath "$1")")" "$_msg" "${3:-}" \
-    | bash "$SCRIPTS/keep-going.sh" >/dev/null 2>"$TMP/kg-err"
-  echo $?
-}
-KG="$TMP/kg"
-mkdir -p "$KG"
-
-{ kg_use TaskCreate '{"subject":"Write the parser tests"}' t1
-  kg_res t1 'Task #1 created successfully: Write the parser tests'
-  kg_use TaskCreate '{"subject":"Run it end to end"}' t2
-  kg_res t2 'Task #2 created successfully: Run it end to end'
-  kg_use TaskUpdate '{"taskId":"1","status":"completed"}' t3; } >"$KG/open.jsonl"
-expect_eq "2" "$(kg "$KG/open.jsonl" 'Parser is in.')" "an open checklist item blocks the stop"
-case $(cat "$TMP/kg-err") in *'Run it end to end'*) pass "the refusal names the open item" ;;
-  *) fail "the refusal names the open item" "$(cat "$TMP/kg-err")" ;; esac
-case $(cat "$TMP/kg-err") in *'Write the parser tests'*) fail "a completed item is not listed" "$(cat "$TMP/kg-err")" ;;
-  *) pass "a completed item is not listed" ;; esac
-
-{ cat "$KG/open.jsonl"; kg_use TaskUpdate '{"taskId":"2","status":"completed"}' t4; } >"$KG/done.jsonl"
-expect_eq "0" "$(kg "$KG/done.jsonl" 'All done and verified.')" "a fully completed checklist passes"
-{ cat "$KG/open.jsonl"; kg_use TaskUpdate '{"taskId":"2","status":"deleted"}' t4; } >"$KG/deleted.jsonl"
-expect_eq "0" "$(kg "$KG/deleted.jsonl" 'Dropped the end-to-end run: superseded.')" "a deleted item no longer counts as open"
-
-{ kg_use TodoWrite '{"todos":[{"content":"Add tests","status":"in_progress"},{"content":"Docs","status":"pending"}]}' w1; } >"$KG/todo-open.jsonl"
-expect_eq "2" "$(kg "$KG/todo-open.jsonl" 'Halfway.')" "an open TodoWrite item (older sessions) blocks too"
-{ cat "$KG/todo-open.jsonl"
-  kg_use TodoWrite '{"todos":[{"content":"Add tests","status":"completed"},{"content":"Docs","status":"completed"}]}' w2; } >"$KG/todo-done.jsonl"
-expect_eq "0" "$(kg "$KG/todo-done.jsonl" 'Done.')" "the latest TodoWrite snapshot decides, not an earlier one"
-
-expect_eq "0" "$(kg "$KG/open.jsonl" 'user-only: the end-to-end run needs your staging login.')" \
-  "open items with a user-only reason pass: blocked on the user is a fine place to stop"
-expect_eq "0" "$(kg "$KG/open.jsonl" 'Parser is in.' ',"stop_hook_active":true')" "it never blocks the same stop twice"
-
-# Open items only count when the checklist was worked this turn: a user who asks
-# something new mid-task gets an answer, not a session pulled back onto the list.
-kg_prompt() { printf '{"type":"user","message":{"content":%s}}\n' "$(json_str "$1")"; }
-{ cat "$KG/open.jsonl"; kg_prompt 'where do we stand on this?'; am 'Two of three items done.'; } >"$KG/asked.jsonl"
-expect_eq "0" "$(kg "$KG/asked.jsonl" 'Two of three items done.')" "a new user question mid-task gets answered, not bounced"
-{ cat "$KG/open.jsonl"; kg_prompt 'keep going'; kg_use TaskUpdate '{"taskId":"1","status":"completed"}' t9; } >"$KG/worked.jsonl"
-expect_eq "2" "$(kg "$KG/worked.jsonl" 'Done for now.')" "working the checklist this turn and stopping with items open still blocks"
-{ cat "$KG/open.jsonl"
-  printf '{"type":"user","isMeta":true,"message":{"content":"Stop hook feedback: keep going"}}\n'; } >"$KG/meta.jsonl"
-expect_eq "2" "$(kg "$KG/meta.jsonl" 'Parser is in.')" "hook feedback is not a new user turn"
-
-{ kg_use TaskCreate '{"subject":"Subagent scratch item"}' s1 true
-  kg_res s1 'Task #9 created successfully: Subagent scratch item'; } >"$KG/side.jsonl"
-expect_eq "0" "$(kg "$KG/side.jsonl" 'Done.')" "a subagent's own checklist is not the session's"
-
-# The other early stop: offering the obvious next step instead of taking it.
-: >"$KG/empty.jsonl"
-expect_eq "2" "$(kg "$KG/empty.jsonl" 'The fix is in. Want me to run the full test suite?')" "ending on 'Want me to...?' blocks"
-expect_eq "2" "$(kg "$KG/empty.jsonl" 'Parser done. Should I continue with the docs?')" "ending on 'Should I...?' blocks"
-expect_eq "2" "$(kg "$KG/empty.jsonl" 'Merged. Let me know if you would like me to add tests.')" "ending on 'let me know if you would like me to' blocks"
-expect_eq "2" "$(kg "$KG/empty.jsonl" 'Shipped. Happy to wire up the CI job too if you want.')" "ending on 'happy to... if you want' blocks"
-case $(cat "$TMP/kg-err") in *'Happy to wire up the CI job'*) pass "the refusal quotes the offer" ;;
-  *) fail "the refusal quotes the offer" "$(cat "$TMP/kg-err")" ;; esac
-expect_eq "2" "$(kg "$KG/empty.jsonl" 'Fix is in. **Want me to run the full suite?**')" "a bold-wrapped offer still counts"
-expect_eq "2" "$(kg "$KG/empty.jsonl" 'Fix is in (should I also update the docs?)')" "an offer inside parentheses still counts"
-expect_eq "0" "$(kg "$KG/empty.jsonl" 'Two ways to go. Which do you prefer, the CSV or the sheet?')" \
-  "a real choice for the user is not an offer"
-expect_eq "0" "$(kg "$KG/empty.jsonl" 'You said you want me to keep replies short, so the summary is three lines.')" \
-  "'want me to' in a statement, not a question, is not an offer"
-expect_eq "0" "$(kg "$KG/empty.jsonl" "$(printf 'Want me to fix that? You asked, so I did. Then I ran the suite.\nAll 40 tests pass. The PR is merged.')")" \
-  "an offer earlier in the message, already acted on, does not count"
-expect_eq "0" "$(kg "$KG/empty.jsonl" 'user-only: needs your sign-in. Want me to retry after you log in?')" "an offer next to a user-only reason passes"
-
-# Final message from the transcript when the payload has none (older versions).
-{ cat "$KG/empty.jsonl"; am 'Done. Want me to deploy it to staging?'; } >"$KG/tail.jsonl"
-expect_eq "2" "$(kg "$KG/tail.jsonl" '')" "the transcript fallback finds the closing offer"
-rc=$( printf 'not json' | bash "$SCRIPTS/keep-going.sh" >/dev/null 2>&1; echo $? )
-expect_eq "0" "$rc" "an unparseable payload says nothing"
-rc=$( printf '{"session_id":"k2"}' | bash "$SCRIPTS/keep-going.sh" >/dev/null 2>&1; echo $? )
-expect_eq "0" "$rc" "no transcript and no message says nothing"
-
-printf '\n== unreviewed-done ==\n'
-
-UR="$TMP/ur"
-mkdir -p "$UR"
-ur() {  # $1 transcript  $2 session id
-  printf '{"session_id":"%s","transcript_path":%s}' "$2" "$(json_str "$(winpath "$1")")" \
-    | CLAUDE_PLUGIN_DATA="$(winpath "$UR")" bash "$SCRIPTS/unreviewed-done.sh" >/dev/null 2>"$TMP/ur-err"
-  echo $?
-}
-{ kg_use Edit '{"file_path":"/repo/app/parse.py","old_string":"a","new_string":"b"}' e1; } >"$UR/edit.jsonl"
-expect_eq "2" "$(ur "$UR/edit.jsonl" u1)" "code changed and nobody reviewed it: says so"
-case $(cat "$TMP/ur-err") in *'parse.py'*'house:reviewer'*) pass "it names the files and the reviewer to run" ;;
-  *) fail "it names the files and the reviewer to run" "$(cat "$TMP/ur-err")" ;; esac
-expect_eq "0" "$(ur "$UR/edit.jsonl" u1)" "it says so once per session, not at every stop"
-
-{ cat "$UR/edit.jsonl"; kg_use Agent '{"subagent_type":"house:reviewer","prompt":"Review against the request"}' r1; } >"$UR/reviewed.jsonl"
-expect_eq "0" "$(ur "$UR/reviewed.jsonl" u2)" "a reviewer run after the last edit passes"
-{ cat "$UR/edit.jsonl"; kg_use Agent '{"subagent_type":"house:reviewer","prompt":"Review"}' r2
-  kg_res r2 'VERDICT: PASS
-Intent: matches the request.'; } >"$UR/pass.jsonl"
-expect_eq "0" "$(ur "$UR/pass.jsonl" u9)" "a PASS verdict after the last edit passes"
-{ cat "$UR/edit.jsonl"; kg_use Agent '{"subagent_type":"house:reviewer","prompt":"Review"}' r3
-  kg_res r3 'VERDICT: FAIL
-1. [Blocker] parse.py:3 drops the last row.'; } >"$UR/fail.jsonl"
-expect_eq "2" "$(ur "$UR/fail.jsonl" u10)" "a FAIL verdict with nothing fixed since is not done"
-case $(cat "$TMP/ur-err") in *'said FAIL'*) pass "it says the review failed" ;;
-  *) fail "it says the review failed" "$(cat "$TMP/ur-err")" ;; esac
-{ cat "$UR/fail.jsonl"; kg_use Edit '{"file_path":"/repo/app/parse.py","old_string":"c","new_string":"d"}' e9; } >"$UR/fixed.jsonl"
-expect_eq "2" "$(ur "$UR/fixed.jsonl" u11)" "fixing after a FAIL still needs a re-review"
-{ cat "$UR/edit.jsonl"; kg_use Skill '{"skill":"code-review","args":"medium"}' r1; } >"$UR/skill.jsonl"
-expect_eq "0" "$(ur "$UR/skill.jsonl" u3)" "a code-review skill run counts as a review"
-{ kg_use Agent '{"subagent_type":"house:reviewer","prompt":"Review"}' r1
-  kg_use Edit '{"file_path":"/repo/app/parse.py","old_string":"b","new_string":"c"}' e2; } >"$UR/after.jsonl"
-expect_eq "2" "$(ur "$UR/after.jsonl" u4)" "code changed after the last review: says so"
-case $(cat "$TMP/ur-err") in *'after the last review'*) pass "it says the change came after the review" ;;
-  *) fail "it says the change came after the review" "$(cat "$TMP/ur-err")" ;; esac
-{ cat "$UR/edit.jsonl"; kg_use Agent '{"subagent_type":"Explore","prompt":"find the parser"}' x1; } >"$UR/explore.jsonl"
-expect_eq "2" "$(ur "$UR/explore.jsonl" u5)" "a non-review subagent is not a review"
-{ kg_use Write '{"file_path":"/repo/README.md","content":"x"}' d1; } >"$UR/docs.jsonl"
-expect_eq "0" "$(ur "$UR/docs.jsonl" u6)" "docs-only changes need no review"
-: >"$UR/none.jsonl"
-expect_eq "0" "$(ur "$UR/none.jsonl" u7)" "a transcript with no tool calls says nothing"
-rc=$( printf '{"session_id":"u8","transcript_path":"/no/such/file"}' | bash "$SCRIPTS/unreviewed-done.sh" >/dev/null 2>&1; echo $? )
-expect_eq "0" "$rc" "a missing transcript says nothing"
-
-printf '\n== reviewer agent ==\n'
-
-# The reviewer is only independent if it cannot quietly fix what it finds.
-rv=$("$PY_BIN" -c '
-import re, sys
-t = open(sys.argv[1], encoding="utf-8").read()
-m = re.match(r"---\n(.*?)\n---\n", t, re.S)
-if not m:
-    print("no-frontmatter"); sys.exit()
-f = dict(l.split(":", 1) for l in m.group(1).splitlines() if ":" in l)
-f = {k.strip(): v.strip() for k, v in f.items()}
-deny = {x.strip() for x in f.get("disallowedTools", "").split(",")}
-print(f.get("name"), bool(f.get("description")), {"Write", "Edit"} <= deny)
-' "$ROOT/plugins/house/agents/reviewer.md" 2>&1)
-expect_eq "reviewer True True" "$rv" "reviewer.md: named reviewer, described, and barred from Write and Edit"
-
-wired=$("$PY_BIN" -c '
+# Review, keep-going and "corrections become rules" come from Anthropic's own
+# plugins, enabled in settings.json. Dropping one silently removes that piece
+# from every session on this machine, so the list is pinned here.
+op=$("$PY_BIN" -c '
 import json, sys
-h = json.load(open(sys.argv[1]))["hooks"]
-stop = " ".join(x["command"] for g in h.get("Stop", []) for x in g["hooks"])
-print("keep-going.sh" in stop, "unreviewed-done.sh" in stop)
-' "$ROOT/plugins/house/hooks/hooks.json" 2>/dev/null)
-expect_eq "True True" "$wired" "keep-going and unreviewed-done are registered on Stop"
+s = json.load(open(sys.argv[1], encoding="utf-8"))
+want = ["feature-dev", "pr-review-toolkit", "ralph-loop", "hookify", "claude-md-management"]
+en = s.get("enabledPlugins", {})
+missing = [p for p in want if en.get(p + "@claude-plugins-official") is not True]
+mk = (s.get("extraKnownMarketplaces", {}).get("claude-plugins-official") or {}).get("source") or {}
+if missing:
+    print("missing: " + ", ".join(missing))
+elif mk.get("repo") != "anthropics/claude-plugins-official":
+    print("marketplace not declared")
+else:
+    print("ok")
+' "$ROOT/settings.json" 2>&1)
+expect_eq "ok" "$op" "settings.json enables the five official plugins from Anthropic's marketplace"
 
 printf '\n== deny-path-scan ==\n'
 

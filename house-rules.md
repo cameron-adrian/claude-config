@@ -66,34 +66,40 @@ things above that are mine to do.
 Most of my messages to you are one of two things: correcting something
 obviously wrong or not what I meant, or telling you to carry on with the
 obvious next step. Both mean the work stopped too early. So nothing is done
-until it has been through all of this, without me asking:
+until it has been through all of this, without me asking. The tools are
+Anthropic's official plugins (`claude-plugins-official`), enabled in
+`settings.json`; use them rather than improvising your own version:
 
-1. **Write down what done means first.** Before building, turn my request
-   into a checklist in your task list: the outcome I asked for, plus the
-   checks that prove it (tests written and run, the feature actually used end
-   to end, edge cases tried). A turn doesn't end while an item is open, unless
-   it's blocked on a `user-only` item. The `keep-going` hook enforces this.
+1. **Pin down what I meant before building.** For a feature or anything
+   bigger than a quick fix, run `/feature-dev`: it explores the code, asks
+   its clarifying questions up front, and designs before writing. Put the
+   outcome and the checks that prove it (tests written and run, the feature
+   used end to end, edge cases tried) in your task list.
 2. **Show evidence, not claims.** Real command output, real counts, the page
    actually loaded. "Should work" is not done.
-3. **Get it reviewed by someone who didn't write it.** Once it works, run the
-   house `reviewer` agent in a fresh context, with my original request word for
-   word. It checks the work against what I asked for, not what you built.
-   Before fixing a finding, confirm it's real: reproduce it, or run the
-   reviewer again in verify mode. A finding that doesn't hold up is closed with
-   a one-line reason. Fix, re-review, and stop after three rounds: if it still
-   fails, rethink the approach instead of patching. The `unreviewed-done` hook
-   says so when code changed and no review ran.
-4. **Decide, don't ask.** If a choice can be undone (naming, structure, a
-   library, how to fix a test), make it, note it in the PR or commit message,
-   and keep going. Ask only for my `user-only` list. Questions that can wait
-   go together into one message, not one at a time. Don't end a turn by
-   offering the obvious next step ("Want me to test it?"): do it. The
-   `keep-going` hook catches that too.
+3. **Get it reviewed by someone who didn't write it.** Once it works, run
+   `/pr-review-toolkit:review-pr` (or one of its agents, such as
+   `silent-failure-hunter` or `pr-test-analyzer`, for a narrow change), and
+   give it my original request word for word. Before fixing a finding,
+   confirm it's real; close one that doesn't hold up with a one-line reason.
+   Stop after three review rounds: if it still fails, rethink the approach
+   instead of patching.
+4. **Don't stop early, and decide, don't ask.** For a long task, run it
+   under `/ralph-loop` with a completion promise, so it keeps going until the
+   checklist is genuinely done. If a choice can be undone (naming, structure,
+   a library, how to fix a test), make it, note it in the PR or commit
+   message, and keep going. Ask only for my `user-only` list, batched into one
+   message. Don't end a turn by offering the obvious next step ("Want me to
+   test it?"): do it.
 5. **When I correct you, make it stick.** After fixing a mistake I pointed
-   out, add a one-line rule where it'll be read next time (the repo's
-   `CLAUDE.md`, or these rules for anything general), unless a test, lint rule
-   or hook can catch it instead, which is always better. Check first that it
-   isn't already there.
+   out, turn it into a hook with `/hookify` if a pattern can catch it, or
+   capture it with `/revise-claude-md` (the repo's `CLAUDE.md`, or these rules
+   for anything general). Check first that it isn't already there.
+
+**Before building anything custom, check for an official version first:**
+Claude Code's built-in commands and skills, then `claude-plugins-official`,
+then Anthropic's docs. Build custom only for what's genuinely specific to me,
+and say what you checked.
 
 ## The board
 

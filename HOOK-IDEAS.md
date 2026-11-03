@@ -207,7 +207,7 @@ How it resolved, and what to keep when changing it:
 
 ---
 
-## 2026-11-03 — The team: agents that check each other and don't stop early — `in progress` (plugin 1.4.0)
+## 2026-11-03 — The team: agents that check each other and don't stop early — `done` (official plugins, plugin 1.4.0)
 
 > "MOST of the time I'm interacting with claude it's to do 1 of 2 things: 1. yell
 > at it for doing something obviously stupid or not my intent … 2. tell it to
@@ -222,23 +222,22 @@ own output.
 
 How it resolved, and what to keep when changing it:
 
-- **House rule "Finishing work"**: done-checklist in the task list, evidence,
-  independent review with confirmed findings and a three-round cap, decide
-  reversible choices, and every user correction becomes a rule (or better, a
-  test or hook).
-- **`house:reviewer` agent**: fresh context, barred from Write and Edit (a test
-  enforces that), judges against the user's words, with a verify mode for
-  confirming findings before they cost a fix round.
-- **`keep-going` hook**: open checklist items or a closing "Want me to…?" block the
-  stop once. The question form only counts when the sentence really is a
-  question; a mutation dropping that check is caught.
-- **`unreviewed-done` hook**: once per session, code changed with no review after
-  the last change.
-- **Reviewed before landing** (high-effort code review, 7 findings): open tasks
-  now only block when the checklist was worked this turn, so a mid-task question
-  gets answered; bold or bracketed offers count; a FAIL review is not "reviewed";
-  the source-extension list is shared through `lib.sh`.
+- **First pass: built custom.** A house `reviewer` agent, a `keep-going` hook
+  (block the stop while the checklist has open items or the turn ends on "Want
+  me to…?") and an `unreviewed-done` hook, with 46 tests, mutation-tested and
+  code-reviewed. Never merged.
+- **Then swapped for Anthropic's own plugins**, after the user asked why this was
+  custom at all when it's becoming the default way of working:
+  > "is there a reason why we're doing this custom? … can we not just like,
+  > implement exact things that have already been defined elsewhere?"
+  `anthropics/claude-plugins-official` already ships each piece:
+  `pr-review-toolkit` (six specialist reviewers) and `code-review` for review,
+  `feature-dev` for pinning down intent up front, `ralph-loop` for not stopping
+  early, `hookify` and `claude-md-management` for turning corrections into hooks
+  and rules. `settings.json` enables five of them, the "Finishing work" house
+  rule points at them, and the suite pins the list.
+- **The lesson is now a house rule:** check built-ins, the official plugin
+  marketplace and Anthropic's docs before building anything custom.
 - **Still open:** Claude Code's experimental agent teams (`TaskCompleted` /
-  `TeammateIdle` hooks) as the next step once they're stable, with the reviewer
-  as a teammate role. And one shared transcript reader in `lib.sh`: handoff-guard,
-  board and keep-going each parse "the last assistant message" themselves.
+  `TeammateIdle` hooks) once stable. And a shared transcript reader in `lib.sh`:
+  handoff-guard and board each parse "the last assistant message" themselves.
