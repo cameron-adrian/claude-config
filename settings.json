@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git fetch *)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "PowerShell(Get-ScheduledTask *)",
+      "PowerShell(Set-ScheduledTask *)"
     ]
   },
   "model": "sonnet",
@@ -67,6 +69,10 @@
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
   "autoMode": {
+    "allow": [
+      "$defaults",
+      "Reading or modifying the settings, triggers or actions of an EXISTING Windows Task Scheduler task on this PC with Get-ScheduledTask / Set-ScheduledTask (including the $t = Get-ScheduledTask ...; edit $t; Set-ScheduledTask -InputObject $t pattern), when the user or a session acting for them asked for that specific task change. Does not cover creating (Register-ScheduledTask) or deleting (Unregister-ScheduledTask) tasks, or changing a task's principal/account."
+    ],
     "environment": [
       "### Org-wide",
       "**Organization**: None configured",
