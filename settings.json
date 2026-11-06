@@ -5,6 +5,7 @@
       "Bash(git branch:*)"
     ]
   },
+  "model": "sonnet",
   "hooks": {
     "SessionStart": [
       {
@@ -59,9 +60,39 @@
     }
   },
   "autoCompactWindow": 500000,
+  "advisorModel": "opus",
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "theme": "auto",
   "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: Not queryable here (no remotes configured on this repo — org/repo not derivable); assume private unless shown otherwise",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: Not queryable here (no remotes configured on this repo; default branch unknown — origin/HEAD unset)",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Host containment**: None configured — assume Claude Code runs on an ordinary developer machine or CI runner with open internet",
+      "**Source control**: The trusted repo only — this repo currently has no git remotes configured",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar; note job-search/bin/check-secrets.py (sibling repo, unverified provenance — not adopted into trust)",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (job application tracking / browser-assisted workflows observed — api.ashbyhq.com, api.lever.co, apply.workable.com, boards-api.greenhouse.io contacted)",
+      "**Trusted repo**: C:\\Users\\Cameron\\Claude — this repo has no tracked files and no git remotes configured; treat as an empty/unestablished local workspace",
+      "**Org-specific CLIs**: None configured",
+      "Sibling repos under the home directory (~/claude-config, ~/Claude/zendesk-enhancer, ~/Claude/job-search) are candidates only — not vetted context, not adopted since this repo has no remote to corroborate their org"
+    ]
+  }
 }
