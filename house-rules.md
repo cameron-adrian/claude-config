@@ -248,6 +248,16 @@ returns a 403 that is indistinguishable from an egress block.
 
 To wait on CI, `gh pr checks <n> --watch`. Never an ad hoc polling loop.
 
+**When `gh` says the token is invalid, expired, or 401, start the login
+yourself and prompt me to approve it.** I'm often away from the PC, so never
+tell me to run `gh auth login` in a terminal. Run
+`echo | gh auth login -h github.com -p https -w --skip-ssh-key` in the
+background, redirected to a scratchpad file, read the one-time code from it, and
+send me the code plus https://github.com/login/device as a `user-only:` line to
+approve from my phone. Then wait for "Authentication complete" in that file and
+carry on with the PR and CI without being told. Never fall back to "open the PR
+yourself in the browser" unless the login fails.
+
 ## Say what you can actually verify
 
 At the start of work on anything with a UI — a browser extension, a web app, a
