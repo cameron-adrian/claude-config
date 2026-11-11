@@ -55,3 +55,6 @@ jobs:
           label_trigger: ready
           # A cap so one stuck card cannot burn the whole Pro allowance.
           claude_args: --max-turns 60
+          # Temporary: the first live run ended in 93 ms with no reason shown.
+          # Remove once the failure is understood; a public repo's logs are public.
+          show_full_output: true
