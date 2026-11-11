@@ -53,8 +53,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           label_trigger: ready
-          # A cap so one stuck card cannot burn the whole Pro allowance.
-          claude_args: --max-turns 60
-          # Temporary: the first live run ended in 93 ms with no reason shown.
-          # Remove once the failure is understood; a public repo's logs are public.
-          show_full_output: true
+          # A cap so one stuck card cannot burn the whole Pro allowance. By
+          # default the action pushes a branch and leaves a "Create PR" link
+          # for a human; allowing `gh pr create` lets it open the PR itself,
+          # which is the point of a board you only check in on.
+          claude_args: >-
+            --max-turns 60
+            --allowedTools "Bash(gh pr create:*),Bash(gh pr view:*)"
