@@ -68,6 +68,8 @@ reach GitHub's GraphQL API, which Projects require, so labels over REST are the
 only thing every session can write. On the phone, the Needs you column is this
 search:
 `https://github.com/search?q=is%3Aopen+label%3Aneeds-me+user%3Acameron-adrian&type=issues`.
+Putting the `ready` label on an issue starts the claude workflow
+(`.github/workflows/claude.yml`), which works the card and opens a PR.
 
 **Every gate fails open.** No python, no `gh`, no network, an unfamiliar repo
 shape — all of them exit 0 and let the call through. And any command containing
