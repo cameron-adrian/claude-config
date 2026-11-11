@@ -1,0 +1,57 @@
+# Anthropic's own GitHub Action (anthropics/claude-code-action), used as-is.
+# This is the trial of the board-driven way of working: a card on GitHub starts
+# an agent, the agent opens a PR, and a comment on the card continues the work.
+#
+# Two ways to start it, both from the GitHub web or phone app:
+#   - put the `ready` label on an issue (the card's body is the task), or
+#   - write `@claude ...` in an issue or PR comment.
+#
+# Safety: the action only runs for people with write access to this repo, and
+# it ignores bot accounts, so a stranger commenting on this public repo cannot
+# start a run. It signs in with the Pro subscription token stored as the repo
+# secret CLAUDE_CODE_OAUTH_TOKEN (made with `claude setup-token`), so runs count
+# against Pro limits, not API billing.
+#
+# Runs on GitHub's machines for now. To use the always-on PC instead, change
+# `runs-on` to `self-hosted` once a runner is installed there.
+
+name: claude
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+# One run per card at a time; a second comment waits instead of colliding.
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    # Skip cheaply when the event is not for Claude, so no runner is started.
+    if: >-
+      (github.event_name == 'issues' && github.event.label.name == 'ready') ||
+      (github.event_name != 'issues' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          label_trigger: ready
+          # A cap so one stuck card cannot burn the whole Pro allowance.
+          claude_args: --max-turns 60
