@@ -208,6 +208,7 @@ How it resolved, and what to keep when changing it:
   note: open a `needs-me` issue and the next session anywhere brings it up.
 - **Still open:** a scheduled task that picks up To do cards on its own, and a
   daily digest of the board.
+- **Trial** (2026-11-11): the official claude-code-action runs a `ready` card end to end.
 
 ---
 
