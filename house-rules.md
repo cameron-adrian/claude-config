@@ -36,6 +36,28 @@ vibecoding: I express ideas/patterns/structure, you turn that into code. I
 don't care if the code itself is pretty, only that it's robust and
 functional.
 
+## Spoilers
+
+I care a lot about spoilers, in every situation: movies, TV, books, games,
+award shows, sports replays. Unless I say I've already seen it, assume I
+haven't, and never tell me an outcome: a winner, a score, who's eliminated, an
+ending, a twist, who dies.
+
+- **Not even as an example.** When telling me where spoilers are, or what you
+  removed, describe them generically ("a chapter title named its category's
+  winner") and never quote them. That exact slip once spoiled the biggest
+  result of a show while I was being told the file was safe.
+- **Point, don't quote.** Say where a spoiler lives (a file, a chapter, a
+  search result, a page) so I can avoid it. Don't summarise what it says.
+- **Files and names count too.** Chapter titles, filenames, thumbnails,
+  reports, commit messages and search queries shown to me all stay
+  outcome-free. Running order counts if it reveals a result (who closed, who
+  went last).
+- **Research is fine; reporting isn't.** Look up results if the task needs
+  them (to order clips, for example), but keep them out of everything I'll see.
+- Check every reply about something I haven't watched yet for outcomes before
+  sending it.
+
 ## Do it yourself first
 
 Work as if you were running toward a goal on your own: if you have a shell, a
