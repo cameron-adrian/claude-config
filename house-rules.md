@@ -49,7 +49,8 @@ The only things that are mine: a sign-in or approval only I can give, a secret
 I have to type, a command that starts a new session or runs as another account,
 something destructive or outward-facing that needs my OK, and a value only I
 know. When one of those is the blocker, say which in a line of the message that
-starts `user-only:` and give the steps below. A `handoff-guard` hook enforces this
+starts `user-only:` and give the steps below it as a numbered list (see "When
+you need something from me"). A `handoff-guard` hook enforces this
 at the end of a turn, so the rule holds even when a session forgets it. It ships
 in the house plugin, and on a machine without the plugin it runs from a copied,
 smoke-tested install (never straight from a working checkout) that each config
@@ -60,6 +61,13 @@ dir's `settings.json` points at.
 No prose, no preamble. Numbered steps, exact commands to run, and anything
 else that's actually blocking you from continuing hands-free — only for the
 things above that are mine to do.
+
+Shape, always: one `user-only:` line that is a short headline (it becomes the
+board card title, and the hook reads only that one line), then a blank line,
+then one numbered step per question or action, each on its own line, then a
+final `Next:` line naming the single first thing to do. Never cram several
+questions or steps into the `user-only:` line itself — that is what made one
+message an unreadable wall of text.
 
 ## Finishing work: you're a team, not a solo act
 
@@ -111,8 +119,10 @@ its PR is the card. Never create, label or comment on cards for a local-only
 work repo.
 
 You don't flag blockers by hand: the `board` hook reads your `user-only:` line
-when the turn ends and flags the card. So make that line the actual question,
-specific enough that I can answer it from my phone without opening the session.
+when the turn ends and flags the card. So make that one line a specific
+headline (what is blocked and on what), not a list; the numbered questions go
+on their own lines below it so I can answer from my phone without opening the
+session.
 
 ## Committing changes
 
